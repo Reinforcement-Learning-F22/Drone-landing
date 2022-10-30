@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "drone-landing"
+version = "0.0.1"
+description = "PyBullet Gym drone landing environment for reinforcement learning of quadcopter control"
+authors = ["Ivan Efremov"]
+license = "MIT"
+packages = [
+    { include = "drone_landing" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+numpy = "^1.22"
+Pillow = "^9.0"
+matplotlib = "^3.5"
+cycler = "^0.10"
+gym = "^0.21"
+pybullet = "^3.2"
+stable-baselines3 = "^1.5"
+scipy = "^1.8"
+tensorboard = "^2.9"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core @ git+https://github.com/python-poetry/poetry-core.git@master"]
+build-backend = "poetry.core.masonry.api"
