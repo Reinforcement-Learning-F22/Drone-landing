@@ -1,4 +1,7 @@
 <robot name="simple_box">
+    <material name="green">
+      <color rgba="0 1 0 1"/>
+    </material>
   <link name="my_box">
     <inertial>
       <origin xyz="0 0 0" /> 
@@ -8,13 +11,14 @@
     <visual>
       <origin xyz="0 0 0"/>
       <geometry>
-        <box size="0.1 10 10" />
+        <box size="1 1 0.001" />
       </geometry>
+      <material name="green"/>
     </visual>
     <collision>
       <origin xyz="0 0 0"/>
       <geometry>
-        <box size="0.1 10 10" />
+        <box size="1 1 0.001" />
       </geometry>
     </collision>
   </link>

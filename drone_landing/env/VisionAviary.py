@@ -91,6 +91,11 @@ class VisionAviary(BaseAviary):
                 p.getQuaternionFromEuler([0, 0, 0]),
                 physicsClientId=self.CLIENT
                 )
+        p.loadURDF("data/platform.urdf",
+                [0, 0, 0.005],
+                p.getQuaternionFromEuler([0, 0, 0]),
+                physicsClientId=self.CLIENT
+                )
         p.loadURDF("data/wall.urdf",
                 [5, 0, 5],
                 p.getQuaternionFromEuler([0, 0, 0]),
