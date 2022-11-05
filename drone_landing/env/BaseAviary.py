@@ -217,8 +217,6 @@ class BaseAviary(gym.Env):
         self._housekeeping()
         #### Update and store the drones kinematic information #####
         self._updateAndStoreKinematicInformation()
-        #### Start video recording #################################
-        self._startVideoRecording()
     
     ################################################################################
 
@@ -242,8 +240,6 @@ class BaseAviary(gym.Env):
         self._housekeeping()
         #### Update and store the drones kinematic information #####
         self._updateAndStoreKinematicInformation()
-        #### Start video recording #################################
-        self._startVideoRecording()
         #### Return the initial observation ########################
         return self._computeObs()
     
@@ -276,24 +272,6 @@ class BaseAviary(gym.Env):
             in each subclass for its format.
 
         """
-        #### Save PNG video frames if RECORD=True ####
-        if False and self.step_counter%self.CAPTURE_FREQ == 0:
-            [w, h, rgb, dep, seg] = p.getCameraImage(width=self.VID_WIDTH,
-                                                     height=self.VID_HEIGHT,
-                                                     shadow=1,
-                                                     viewMatrix=self.CAM_VIEW,
-                                                     projectionMatrix=self.CAM_PRO,
-                                                     renderer=p.ER_TINY_RENDERER,
-                                                     flags=p.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
-                                                     physicsClientId=self.CLIENT
-                                                     )
-            (Image.fromarray(np.reshape(rgb, (h, w, 4)), 'RGBA')).save(os.path.join(self.IMG_PATH, "frame_"+str(self.FRAME_NUM)+".png"))
-            #### Save the depth or segmentation view instead #######
-            # dep = ((dep-np.min(dep)) * 255 / (np.max(dep)-np.min(dep))).astype('uint8')
-            # (Image.fromarray(np.reshape(dep, (h, w)))).save(self.IMG_PATH+"frame_"+str(self.FRAME_NUM)+".png")
-            # seg = ((seg-np.min(seg)) * 255 / (np.max(seg)-np.min(seg))).astype('uint8')
-            # (Image.fromarray(np.reshape(seg, (h, w)))).save(self.IMG_PATH+"frame_"+str(self.FRAME_NUM)+".png")
-            self.FRAME_NUM += 1
         #### Read the GUI's input parameters #######################
         if self.GUI and self.USER_DEBUG:
             current_input_switch = p.readUserDebugParameter(self.INPUT_SWITCH, physicsClientId=self.CLIENT)
@@ -359,10 +337,6 @@ class BaseAviary(gym.Env):
         info = self._computeInfo()
         #### Advance the step counter ##############################
         self.step_counter = self.step_counter + (1 * self.AGGR_PHY_STEPS)
-        print("obs", obs)
-        print("reward", reward)
-        print("done", done)
-        print("info", info)
         return obs, reward, done, info
     
     ################################################################################
@@ -498,19 +472,6 @@ class BaseAviary(gym.Env):
             self.pos[i], self.quat[i] = p.getBasePositionAndOrientation(self.DRONE_IDS[i], physicsClientId=self.CLIENT)
             self.rpy[i] = p.getEulerFromQuaternion(self.quat[i])
             self.vel[i], self.ang_v[i] = p.getBaseVelocity(self.DRONE_IDS[i], physicsClientId=self.CLIENT)
-    
-    ################################################################################
-
-    def _startVideoRecording(self):
-        """Starts the recording of a video output.
-
-        The format of the video output is .mp4, if GUI is True, or .png, otherwise.
-        The video is saved under folder `files/videos`.
-
-        """
-        if self.RECORD:
-            self.FRAME_NUM = 0
-            self.IMG_PATH = self.ONBOARD_IMG_PATH
     
     ################################################################################
 

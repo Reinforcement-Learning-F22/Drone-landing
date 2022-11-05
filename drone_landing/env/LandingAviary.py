@@ -25,7 +25,7 @@ class LandingAviary(BaseAviary):
                  drone_model: DroneModel=DroneModel.CF2X,
                  num_drones: int=1,
                  neighbourhood_radius: float=np.inf,
-                 initial_xyzs=None,
+                 initial_xyzs=np.array([[0, 0, 2]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
                  freq: int=20,
@@ -74,7 +74,6 @@ class LandingAviary(BaseAviary):
         self.OBS_TYPE = obs
         self.EPISODE_LEN_SEC = 10
         self.prev_shaping = None
-        initial_xyzs = np.array([[0, 0, 2]])
 
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
@@ -107,7 +106,7 @@ class LandingAviary(BaseAviary):
 
         """
         self.prev_shaping = None
-        super().reset()
+        return super().reset()
 
     ################################################################################
 
@@ -341,7 +340,7 @@ class LandingAviary(BaseAviary):
             Dummy value.
 
         """
-        return {"answer": 42} #### Calculated by the Deep Thought supercomputer in 7.5M years
+        return {"state": self._getDroneStateVector(0)}
 
 
     ################################################################################
