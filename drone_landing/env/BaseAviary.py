@@ -1,4 +1,5 @@
 import os
+import gc
 from sys import platform
 import time
 import collections
@@ -6,8 +7,8 @@ from datetime import datetime
 import xml.etree.ElementTree as etxml
 import pkg_resources
 from PIL import Image
-import pkgutil
-egl = pkgutil.get_loader('eglRenderer')
+# import pkgutil
+# egl = pkgutil.get_loader('eglRenderer')
 import numpy as np
 import pybullet as p
 import pybullet_data
@@ -128,8 +129,10 @@ class BaseAviary(gym.Env):
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
             self.IMG_RES = np.array([100, 100])
-            self.IMG_FRAME_PER_SEC = 24
+            self.IMG_FRAME_PER_SEC = 10
             self.IMG_CAPTURE_FREQ = int(self.SIM_FREQ/self.IMG_FRAME_PER_SEC)
+            self.AGGR_PHY_STEPS = self.IMG_CAPTURE_FREQ
+
             self.rgb = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0], 4)))
             self.dep = np.ones(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0])))
             self.seg = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0])))
@@ -172,7 +175,7 @@ class BaseAviary(gym.Env):
             self.CLIENT = p.connect(p.DIRECT)
             #### Uncomment the following line to use EGL Render Plugin #
             #### Instead of TinyRender (CPU-based) in PYB's Direct mode
-            if platform == "linux": p.setAdditionalSearchPath(pybullet_data.getDataPath()); plugin = p.loadPlugin(egl.get_filename(), "_eglRendererPlugin"); print("plugin=", plugin)
+            # if platform == "linux": p.setAdditionalSearchPath(pybullet_data.getDataPath()); plugin = p.loadPlugin(egl.get_filename(), "_eglRendererPlugin");
             if self.RECORD:
                 #### Set the camera parameters to save frames in DIRECT mode
                 self.VID_WIDTH=int(640)
@@ -230,6 +233,11 @@ class BaseAviary(gym.Env):
 
         """
         p.resetSimulation(physicsClientId=self.CLIENT)
+        numBodies = p.getNumBodies()
+        for i in range (2, numBodies):
+            p.removeBody(i)
+        gc.collect()
+
         #### Housekeeping ##########################################
         self._housekeeping()
         #### Update and store the drones kinematic information #####
@@ -268,8 +276,8 @@ class BaseAviary(gym.Env):
             in each subclass for its format.
 
         """
-        #### Save PNG video frames if RECORD=True and GUI=False ####
-        if self.RECORD and not self.GUI and self.step_counter%self.CAPTURE_FREQ == 0:
+        #### Save PNG video frames if RECORD=True ####
+        if False and self.step_counter%self.CAPTURE_FREQ == 0:
             [w, h, rgb, dep, seg] = p.getCameraImage(width=self.VID_WIDTH,
                                                      height=self.VID_HEIGHT,
                                                      shadow=1,
@@ -351,6 +359,10 @@ class BaseAviary(gym.Env):
         info = self._computeInfo()
         #### Advance the step counter ##############################
         self.step_counter = self.step_counter + (1 * self.AGGR_PHY_STEPS)
+        print("obs", obs)
+        print("reward", reward)
+        print("done", done)
+        print("info", info)
         return obs, reward, done, info
     
     ################################################################################
@@ -496,7 +508,7 @@ class BaseAviary(gym.Env):
         The video is saved under folder `files/videos`.
 
         """
-        if self.RECORD and not self.GUI:
+        if self.RECORD:
             self.FRAME_NUM = 0
             self.IMG_PATH = self.ONBOARD_IMG_PATH
     
@@ -558,7 +570,7 @@ class BaseAviary(gym.Env):
         target = np.dot(rot_mat,np.array([0, 0, -1000])) + np.array(self.pos[nth_drone, :])
         DRONE_CAM_VIEW = p.computeViewMatrix(cameraEyePosition=self.pos[nth_drone, :]+np.array([0, 0, self.L]),
                                              cameraTargetPosition=target,
-                                             cameraUpVector=[0, 0, 1],
+                                             cameraUpVector=[1, 0, 0],
                                              physicsClientId=self.CLIENT
                                              )
         DRONE_CAM_PRO =  p.computeProjectionMatrixFOV(fov=60.0,
