@@ -1,4 +1,5 @@
 import os
+import gc
 from sys import platform
 import time
 import collections
@@ -6,8 +7,8 @@ from datetime import datetime
 import xml.etree.ElementTree as etxml
 import pkg_resources
 from PIL import Image
-import pkgutil
-egl = pkgutil.get_loader('eglRenderer')
+# import pkgutil
+# egl = pkgutil.get_loader('eglRenderer')
 import numpy as np
 import pybullet as p
 import pybullet_data
@@ -128,8 +129,10 @@ class BaseAviary(gym.Env):
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
             self.IMG_RES = np.array([100, 100])
-            self.IMG_FRAME_PER_SEC = 24
+            self.IMG_FRAME_PER_SEC = 10
             self.IMG_CAPTURE_FREQ = int(self.SIM_FREQ/self.IMG_FRAME_PER_SEC)
+            self.AGGR_PHY_STEPS = self.IMG_CAPTURE_FREQ
+
             self.rgb = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0], 4)))
             self.dep = np.ones(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0])))
             self.seg = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0])))
@@ -172,7 +175,7 @@ class BaseAviary(gym.Env):
             self.CLIENT = p.connect(p.DIRECT)
             #### Uncomment the following line to use EGL Render Plugin #
             #### Instead of TinyRender (CPU-based) in PYB's Direct mode
-            if platform == "linux": p.setAdditionalSearchPath(pybullet_data.getDataPath()); plugin = p.loadPlugin(egl.get_filename(), "_eglRendererPlugin"); print("plugin=", plugin)
+            # if platform == "linux": p.setAdditionalSearchPath(pybullet_data.getDataPath()); plugin = p.loadPlugin(egl.get_filename(), "_eglRendererPlugin");
             if self.RECORD:
                 #### Set the camera parameters to save frames in DIRECT mode
                 self.VID_WIDTH=int(640)
@@ -214,8 +217,6 @@ class BaseAviary(gym.Env):
         self._housekeeping()
         #### Update and store the drones kinematic information #####
         self._updateAndStoreKinematicInformation()
-        #### Start video recording #################################
-        self._startVideoRecording()
     
     ################################################################################
 
@@ -230,12 +231,15 @@ class BaseAviary(gym.Env):
 
         """
         p.resetSimulation(physicsClientId=self.CLIENT)
+        numBodies = p.getNumBodies()
+        for i in range (2, numBodies):
+            p.removeBody(i)
+        gc.collect()
+
         #### Housekeeping ##########################################
         self._housekeeping()
         #### Update and store the drones kinematic information #####
         self._updateAndStoreKinematicInformation()
-        #### Start video recording #################################
-        self._startVideoRecording()
         #### Return the initial observation ########################
         return self._computeObs()
     
@@ -268,24 +272,6 @@ class BaseAviary(gym.Env):
             in each subclass for its format.
 
         """
-        #### Save PNG video frames if RECORD=True and GUI=False ####
-        if self.RECORD and not self.GUI and self.step_counter%self.CAPTURE_FREQ == 0:
-            [w, h, rgb, dep, seg] = p.getCameraImage(width=self.VID_WIDTH,
-                                                     height=self.VID_HEIGHT,
-                                                     shadow=1,
-                                                     viewMatrix=self.CAM_VIEW,
-                                                     projectionMatrix=self.CAM_PRO,
-                                                     renderer=p.ER_TINY_RENDERER,
-                                                     flags=p.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
-                                                     physicsClientId=self.CLIENT
-                                                     )
-            (Image.fromarray(np.reshape(rgb, (h, w, 4)), 'RGBA')).save(os.path.join(self.IMG_PATH, "frame_"+str(self.FRAME_NUM)+".png"))
-            #### Save the depth or segmentation view instead #######
-            # dep = ((dep-np.min(dep)) * 255 / (np.max(dep)-np.min(dep))).astype('uint8')
-            # (Image.fromarray(np.reshape(dep, (h, w)))).save(self.IMG_PATH+"frame_"+str(self.FRAME_NUM)+".png")
-            # seg = ((seg-np.min(seg)) * 255 / (np.max(seg)-np.min(seg))).astype('uint8')
-            # (Image.fromarray(np.reshape(seg, (h, w)))).save(self.IMG_PATH+"frame_"+str(self.FRAME_NUM)+".png")
-            self.FRAME_NUM += 1
         #### Read the GUI's input parameters #######################
         if self.GUI and self.USER_DEBUG:
             current_input_switch = p.readUserDebugParameter(self.INPUT_SWITCH, physicsClientId=self.CLIENT)
@@ -489,19 +475,6 @@ class BaseAviary(gym.Env):
     
     ################################################################################
 
-    def _startVideoRecording(self):
-        """Starts the recording of a video output.
-
-        The format of the video output is .mp4, if GUI is True, or .png, otherwise.
-        The video is saved under folder `files/videos`.
-
-        """
-        if self.RECORD and not self.GUI:
-            self.FRAME_NUM = 0
-            self.IMG_PATH = self.ONBOARD_IMG_PATH
-    
-    ################################################################################
-
     def _getDroneStateVector(self,
                              nth_drone
                              ):
@@ -558,7 +531,7 @@ class BaseAviary(gym.Env):
         target = np.dot(rot_mat,np.array([0, 0, -1000])) + np.array(self.pos[nth_drone, :])
         DRONE_CAM_VIEW = p.computeViewMatrix(cameraEyePosition=self.pos[nth_drone, :]+np.array([0, 0, self.L]),
                                              cameraTargetPosition=target,
-                                             cameraUpVector=[0, 0, 1],
+                                             cameraUpVector=[1, 0, 0],
                                              physicsClientId=self.CLIENT
                                              )
         DRONE_CAM_PRO =  p.computeProjectionMatrixFOV(fov=60.0,
