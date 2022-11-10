@@ -82,6 +82,7 @@ class BaseAviary(gym.Env):
         self.SIM_FREQ = freq
         self.TIMESTEP = 1./self.SIM_FREQ
         self.AGGR_PHY_STEPS = aggregate_phy_steps
+
         #### Parameters ############################################
         self.NUM_DRONES = num_drones
         self.NEIGHBOURHOOD_RADIUS = neighbourhood_radius
@@ -128,7 +129,7 @@ class BaseAviary(gym.Env):
         #### Create attributes for vision tasks ####################
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
-            self.IMG_RES = np.array([100, 100])
+            self.IMG_RES = np.array([60, 60])
             self.IMG_FRAME_PER_SEC = 10
             self.IMG_CAPTURE_FREQ = int(self.SIM_FREQ/self.IMG_FRAME_PER_SEC)
             self.AGGR_PHY_STEPS = self.IMG_CAPTURE_FREQ
@@ -337,6 +338,8 @@ class BaseAviary(gym.Env):
         info = self._computeInfo()
         #### Advance the step counter ##############################
         self.step_counter = self.step_counter + (1 * self.AGGR_PHY_STEPS)
+        # print("step", self.step_counter)
+        # print("self.AGGR_PHY_STEPS", self.AGGR_PHY_STEPS)
         return obs, reward, done, info
     
     ################################################################################

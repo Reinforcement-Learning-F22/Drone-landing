@@ -16,7 +16,7 @@ class ObservationType(Enum):
 
 ################################################################################
 
-class LandingAviary(BaseAviary):
+class HoverAviary(BaseAviary):
     """Multi-drone environment class for control applications using vision."""
 
     ################################################################################
@@ -72,9 +72,9 @@ class LandingAviary(BaseAviary):
         """
         vision_attributes = True if obs == ObservationType.RGB else False
         self.OBS_TYPE = obs
-        self.EPISODE_LEN_SEC = 10
+        self.EPISODE_LEN_SEC = 3
         self.prev_shaping = None
-
+        
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
@@ -166,8 +166,8 @@ class LandingAviary(BaseAviary):
             indexed by drone Id in string format.
 
         """
-        return spaces.Box(low=-1*np.ones(4),
-                          high=np.ones(4),
+        return spaces.Box(low=-1*np.ones(4)/2,
+                          high=np.ones(4)/2,
                           dtype=np.float32
                           )
     
@@ -276,58 +276,26 @@ class LandingAviary(BaseAviary):
     VEL_PENALTY_FACTOR = 40
     INSIDE_RADIUS_BONUS = 100
     
+
     def _computeReward(self):
-        """Computes the current reward value.
-
-        Returns
-        -------
-        float
-            The reward.
-
-        """
         state = self._getDroneStateVector(0)
-        dist = np.linalg.norm(state[:3])
-        vel = np.linalg.norm(state[10:13])
-        ang_vel = np.linalg.norm(state[13:16])
+        dist = np.linalg.norm(np.array([0, 0, 1]) - state[:3])
 
-        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist + dist**2)
-
-        shaping = -dist_penalty
+        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist)
+        angle_z_pen = (abs(state[9]))  #+ state[9]**2)
+        shaping = -(dist_penalty + angle_z_pen)
         reward = ((shaping - self.prev_shaping) 
                    if self.prev_shaping is not None else 0)
-        # print("dist_penalty", reward)
-
-        if state[2] < 0.6 and (self.prev_shaping is not None):
-            vel_penalty = self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
-            # print("angular velocity", ang_vel)
-            # print("prev angular velocity", self.prev_ang_vel)
-            # ang_vel_penalty = self.ANG_VEL_PENALTY_FACTOR * (self.prev_ang_vel - ang_vel)
-
-            reward += vel_penalty
-            # reward += ang_vel_penalty
-            # print("vel_penalty0", vel_penalty)
-            # print("ang vel0", ang_vel_penalty)
-
-        angle_z_pen = abs(state[9]) + state[9]**2
-        reward -= 3 * angle_z_pen
-        # print("angle_z", -angle_z_pen)
 
         self.prev_shaping = shaping
-        self.prev_vel = vel
-        self.prev_ang_vel = ang_vel
 
         if state[2] <= 0.05:
-            # Win bigly we land safely to the pltform
-            if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
-                reward += self.INSIDE_RADIUS_BONUS
-            
-            vel_penalty = 0 if vel <= 0.3 else (vel - 0.3) * 70
-            reward -= vel_penalty
-            # print("vel_penalty", -vel_penalty)
-            
-            # reward -= 5 * ang_vel
-            # print("ang vel", -5 * ang_vel)
-
+            reward -= 20
+        else:
+            reward += 10
+        # reward = -dist - dist**2
+        # angle_z_pen = abs(state[9]) + state[9]**2
+        # reward -= 3 * angle_z_pen
         # print("r", reward)
         return reward
 
@@ -344,12 +312,12 @@ class LandingAviary(BaseAviary):
             Dummy value.
 
         """
-        if self.step_counter/self.SIM_FREQ > self.EPISODE_LEN_SEC:
-            return True
-
         state = self._getDroneStateVector(0)
-        return state[2] <= 0.05
-
+        if state[2] <= 0.05:
+            return True 
+        if self.step_counter/self.SIM_FREQ >= self.EPISODE_LEN_SEC:
+            return True
+        return False
     ################################################################################
     
     def _computeInfo(self):
