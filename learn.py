@@ -56,9 +56,9 @@ class HParamCallback(BaseCallback):
         return True
 
 def run(gui=DEFAULT_GUI):
-
-    env = make_vec_env("landing-aviary-v0", n_envs=5, env_kwargs={'obs': ObservationType.RGB})
-    # env = gym.make("landing-aviary-v0", obs = ObservationType.RGB)
+    obs = ObservationType.RGB
+    env = make_vec_env("landing-aviary-v0", n_envs=5, env_kwargs={'obs': obs})
+    # env = gym.make("landing-aviary-v0", obs = obs)
     try:
         model = SAC.load("landing-aviary-v0", env=env)
     except:
@@ -81,7 +81,7 @@ def run(gui=DEFAULT_GUI):
         print(f"mean_reward={mean_reward:.2f} +/- {std_reward}")
         print("------------------------------------------------")
 
-    env = LandingAviary(gui=gui, obs = ObservationType.RGB, record=True)
+    env = LandingAviary(gui=gui, obs = obs, record=True)
     obs = env.reset()
     start = time.time()
 
