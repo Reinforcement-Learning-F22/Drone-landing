@@ -166,8 +166,8 @@ class HoverAviary(BaseAviary):
             indexed by drone Id in string format.
 
         """
-        return spaces.Box(low=-1*np.ones(4)/2,
-                          high=np.ones(4)/2,
+        return spaces.Box(low=-1*np.ones(4)/10,
+                          high=np.ones(4)/10,
                           dtype=np.float32
                           )
     
@@ -223,7 +223,7 @@ class HoverAviary(BaseAviary):
         """
         if self.OBS_TYPE == ObservationType.RGB:
             if self.step_counter%self.IMG_CAPTURE_FREQ == 0:
-                self.rgb, self.dep, self.seg = self._getDroneImages(0)
+                self.rgb, _, _ = self._getDroneImages(0)
                 #### Printing observation to PNG frames example ############
                 if self.RECORD:
                         self._exportImage(img_type=ImageType.RGB, # ImageType.BW, ImageType.DEP, ImageType.SEG

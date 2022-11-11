@@ -1,18 +1,13 @@
 import os
+import gc
 from enum import Enum
 import numpy as np
 from gym import spaces
 import pybullet as p
 
 from drone_landing.env.BaseAviary import BaseAviary
+from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
-
-################################################################################
-
-class ObservationType(Enum):
-    """Observation type enumeration class."""
-    KIN = "kin"     # Kinematic information (pose, linear and angular velocities)
-    RGB = "rgb"     # RGB camera capture in each drone's POV
 
 ################################################################################
 
@@ -24,8 +19,7 @@ class LandingAviary(BaseAviary):
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
                  num_drones: int=1,
-                 neighbourhood_radius: float=np.inf,
-                 initial_xyzs=np.array([[0, 0, 1]]),
+                 initial_xyzs=np.array([[0, 0, 0.5]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
                  freq: int=20,
@@ -35,6 +29,7 @@ class LandingAviary(BaseAviary):
                  obstacles=True,
                  user_debug_gui=False,
                  obs: ObservationType=ObservationType.KIN,
+                 act: ActionType=ActionType.RPM,
                  output_folder='results'
                  ):
         """Initialization of an aviary environment for control applications using vision.
@@ -70,14 +65,11 @@ class LandingAviary(BaseAviary):
             Whether to draw the drones' axes and the GUI RPMs sliders.
 
         """
-        vision_attributes = True if obs == ObservationType.RGB else False
-        self.OBS_TYPE = obs
-        self.EPISODE_LEN_SEC = 10
+        self.EPISODE_LEN_SEC = 5
         self.prev_shaping = None
 
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
-                         neighbourhood_radius=neighbourhood_radius,
                          initial_xyzs=initial_xyzs,
                          initial_rpys=initial_rpys,
                          physics=physics,
@@ -87,11 +79,10 @@ class LandingAviary(BaseAviary):
                          record=record,
                          obstacles=obstacles,
                          user_debug_gui=user_debug_gui,
-                         vision_attributes=vision_attributes,
-                         output_folder=output_folder
+                         output_folder=output_folder,
+                         obs=obs,
+                         act=act
                          )
-        if vision_attributes:
-            self.rgb = self.rgb[0]
 
     ################################################################################
 
@@ -106,6 +97,7 @@ class LandingAviary(BaseAviary):
 
         """
         self.prev_shaping = None
+        gc.collect()
         return super().reset()
 
     ################################################################################
@@ -153,124 +145,10 @@ class LandingAviary(BaseAviary):
                 p.getQuaternionFromEuler([0, np.pi/2, 0]),
                 physicsClientId=self.CLIENT
                 ) 
-                
-    ################################################################################
-
-    def _actionSpace(self):
-        """Returns the action space of the environment.
-
-        Returns
-        -------
-        dict[str, ndarray]
-            A Dict of Box(4,) with NUM_DRONES entries,
-            indexed by drone Id in string format.
-
-        """
-        return spaces.Box(low=-1*np.ones(4),
-                          high=np.ones(4),
-                          dtype=np.float32
-                          )
     
     ################################################################################
 
-    def _observationSpace(self):
-        """Returns the observation space of the environment.
-
-        Returns
-        -------
-        ndarray
-            A Box() of shape (H,W,4) or (12,) depending on the observation type.
-
-        """
-        if self.OBS_TYPE == ObservationType.RGB:
-            return spaces.Box(low=0,
-                              high=255,
-                              shape=(self.IMG_RES[1], self.IMG_RES[0], 4),
-                              dtype=np.uint8
-                              )
-        elif self.OBS_TYPE == ObservationType.KIN:
-            ############################################################
-            #### OBS OF SIZE 20 (WITH QUATERNION AND RPMS)
-            #### Observation vector ### X        Y        Z       Q1   Q2   Q3   Q4   R       P       Y       VX       VY       VZ       WX       WY       WZ       P0            P1            P2            P3
-            # obs_lower_bound = np.array([-1,      -1,      0,      -1,  -1,  -1,  -1,  -1,     -1,     -1,     -1,      -1,      -1,      -1,      -1,      -1,      -1,           -1,           -1,           -1])
-            # obs_upper_bound = np.array([1,       1,       1,      1,   1,   1,   1,   1,      1,      1,      1,       1,       1,       1,       1,       1,       1,            1,            1,            1])          
-            # return spaces.Box( low=obs_lower_bound, high=obs_upper_bound, dtype=np.float32 )
-            ############################################################
-            #### OBS SPACE OF SIZE 12
-            return spaces.Box(low=np.array([-1,-1,0, -1,-1,-1, -1,-1,-1, -1,-1,-1]),
-                              high=np.array([1,1,1, 1,1,1, 1,1,1, 1,1,1]),
-                              dtype=np.float32
-                              )
-            ############################################################
-        else:
-            print("[ERROR] in LandingAviary._observationSpace()")
-    
-    ################################################################################
-  
-    def _computeObs(self):
-        """Returns the current observation of the environment.
-
-        For the value of key "state", see the implementation of `_getDroneStateVector()`,
-        the value of key "neighbors" is the drone's own row of the adjacency matrix,
-        "rgb", "dep", and "seg" are matrices containing POV camera captures.
-
-        Returns
-        -------
-        dict[str, dict[str, ndarray]]
-            A Dict with NUM_DRONES entries indexed by Id in string format,
-            each a Dict in the form {Box(20,), MultiBinary(NUM_DRONES), Box(H,W,4), Box(H,W), Box(H,W)}.
-
-        """
-        if self.OBS_TYPE == ObservationType.RGB:
-            if self.step_counter%self.IMG_CAPTURE_FREQ == 0:
-                self.rgb, self.dep, self.seg = self._getDroneImages(0)
-                #### Printing observation to PNG frames example ############
-                if self.RECORD:
-                        self._exportImage(img_type=ImageType.RGB, # ImageType.BW, ImageType.DEP, ImageType.SEG
-                                            img_input=self.rgb,
-                                            path=self.ONBOARD_IMG_PATH,
-                                            frame_num=int(self.step_counter/self.IMG_CAPTURE_FREQ)
-                                            )
-            return self.rgb
-        elif self.OBS_TYPE == ObservationType.KIN: 
-            obs = self._clipAndNormalizeState(self._getDroneStateVector(0))
-            ############################################################
-            #### OBS OF SIZE 20 (WITH QUATERNION AND RPMS)
-            # return obs
-            ############################################################
-            #### OBS SPACE OF SIZE 12
-            ret = np.hstack([obs[0:3], obs[7:10], obs[10:13], obs[13:16]]).reshape(12,)
-            return ret.astype('float32')
-            ############################################################
-        else:
-            print("[ERROR] in LandingAviary._computeObs()")        
-
-    ################################################################################
-    
-    def _preprocessAction(self,
-                          action
-                          ):
-        """Pre-processes the action passed to `.step()` into motors' RPMs.
-
-        Clips and converts a dictionary into a 2D array.
-
-        Parameters
-        ----------
-        action : dict[str, ndarray]
-            The (unbounded) input action for each drone, to be translated into feasible RPMs.
-
-        Returns
-        -------
-        ndarray
-            (NUM_DRONES, 4)-shaped array of ints containing to clipped RPMs
-            commanded to the 4 motors of each drone.
-
-        """
-        return np.array(self.HOVER_RPM * (1+0.05*action))
-
-    ################################################################################
-
-    TARGET_RADIUS = 0.5
+    TARGET_RADIUS = 0.1
     ANG_VEL_PENALTY_FACTOR = 2
     XYZ_PENALTY_FACTOR = 100
     VEL_PENALTY_FACTOR = 40
@@ -290,39 +168,42 @@ class LandingAviary(BaseAviary):
         vel = np.linalg.norm(state[10:13])
         ang_vel = np.linalg.norm(state[13:16])
 
-        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist + dist**2)
+        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) #+ dist**2)
+        angle_z_pen = 100 * abs(state[9])# + state[9]**2
 
-        shaping = -dist_penalty
+        shaping = -(dist_penalty + angle_z_pen)
         reward = ((shaping - self.prev_shaping) 
                    if self.prev_shaping is not None else 0)
         # print("dist_penalty", reward)
 
-        if state[2] < 0.6 and (self.prev_shaping is not None):
+        if state[2] < 0.3 and (self.prev_shaping is not None):
             vel_penalty = self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
             # print("angular velocity", ang_vel)
             # print("prev angular velocity", self.prev_ang_vel)
             # ang_vel_penalty = self.ANG_VEL_PENALTY_FACTOR * (self.prev_ang_vel - ang_vel)
 
-            reward += vel_penalty
+            # reward += vel_penalty
             # reward += ang_vel_penalty
             # print("vel_penalty0", vel_penalty)
             # print("ang vel0", ang_vel_penalty)
 
-        angle_z_pen = abs(state[9]) + state[9]**2
-        reward -= 3 * angle_z_pen
-        # print("angle_z", -angle_z_pen)
-
+        # angle_z_pen = abs(state[9]) + state[9]**2
+        # reward -= 60 * angle_z_pen
+        # print("angle_z", - 20 * angle_z_pen)
+        reward += 1
         self.prev_shaping = shaping
         self.prev_vel = vel
         self.prev_ang_vel = ang_vel
+        self.prev_angle_z_pen = angle_z_pen
+
 
         if state[2] <= 0.05:
             # Win bigly we land safely to the pltform
             if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
                 reward += self.INSIDE_RADIUS_BONUS
             
-            vel_penalty = 0 if vel <= 0.3 else (vel - 0.3) * 70
-            reward -= vel_penalty
+            # vel_penalty = 0 if vel <= 0.3 else (vel - 0.3) * 50
+            # reward -= vel_penalty
             # print("vel_penalty", -vel_penalty)
             
             # reward -= 5 * ang_vel

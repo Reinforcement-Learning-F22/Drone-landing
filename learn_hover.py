@@ -20,7 +20,7 @@ import time
 import argparse
 import gym
 import numpy as np
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import PPO, SAC, A2C
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
@@ -43,7 +43,7 @@ class HParamCallback(BaseCallback):
     def _on_training_start(self) -> None:
         hparam_dict = {
             "algorithm": self.model.__class__.__name__,
-            "batch_size": self.model.batch_size,
+            # "batch_size": self.model.batch_size,
         }
         metric_dict = {
             "rollout/ep_len_mean": 0,
@@ -57,23 +57,49 @@ class HParamCallback(BaseCallback):
     def _on_step(self) -> bool:
         return True
 
-def run(gui=DEFAULT_GUI, total_timesteps = 30_000):
+def run(gui=DEFAULT_GUI, total_timesteps = 100_000):
     obs = ObservationType.RGB
     env = make_vec_env("hover-aviary-v1", n_envs=5, env_kwargs={'obs': obs})
     # env = gym.make("hover-aviary-v1", obs = obs)
     try:
-        raise
         # model_name = "hover-aviary-v0"
-        model_name = "hover3-SAC_rgb_tt150000.zip"
+        model_name = "hover4-SAC_rgb_tt100000.zip"
         model = SAC.load(model_name, env=env)
+        # model.se
     except:
-        model = SAC(
+        raise
+        # model = A2C(
+        #         # "MlpPolicy",
+        #         "CnnPolicy",
+        #         env,
+        #         n_steps = 3,
+        #         # batch_size=64,
+        #         # learning_rate=0.001,
+        #         tensorboard_log="./tensorboard/",
+        #         seed=0,
+        #         verbose=1
+        #         )
+        # model = SAC(
+        #         # "MlpPolicy",
+        #         "CnnPolicy",
+        #         env,
+        #         buffer_size = 100000,
+        #         batch_size=64,
+        #         # learning_rate=0.001,
+        #         tensorboard_log="./tensorboard/",
+        #         seed=0,
+        #         verbose=1
+        #         )
+        model = PPO(
                 # "MlpPolicy",
                 "CnnPolicy",
                 env,
-                buffer_size = 100000,
+                # buffer_size = 100000,
                 batch_size=64,
-                learning_rate=0.003,
+                n_epochs = 5, 
+                n_steps = 64,
+                ent_coef = 0.01,
+                # learning_rate=0.001,
                 tensorboard_log="./tensorboard/",
                 seed=0,
                 verbose=1
@@ -81,7 +107,7 @@ def run(gui=DEFAULT_GUI, total_timesteps = 30_000):
     # model.learning_rate = 0.003
     if TRAIN:
         model.learn(total_timesteps=total_timesteps, callback=HParamCallback())
-        model_name = "hover-" + model.__class__.__name__ + "_" + obs._value_ + "_tt" + str(total_timesteps)
+        model_name = "hover5-" + model.__class__.__name__ + "_" + obs._value_ + "_tt" + str(total_timesteps)
         model.save(model_name)
         mean_reward, std_reward = evaluate_policy(
             model, env, n_eval_episodes=10, deterministic=False)

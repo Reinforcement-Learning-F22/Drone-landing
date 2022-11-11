@@ -26,8 +26,9 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from drone_landing.env.LandingAviary import LandingAviary, ObservationType
-from drone_landing.env.HoverAviary import HoverAviary, ObservationType
+from drone_landing.env.LandingAviary import LandingAviary
+from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
+# from drone_landing.env.HoverAviary import HoverAviary, ObservationType
 from gym_pybullet_drones.utils.utils import sync, str2bool
 
 DEFAULT_GUI = False
@@ -57,29 +58,47 @@ class HParamCallback(BaseCallback):
     def _on_step(self) -> bool:
         return True
 
-def run(gui=DEFAULT_GUI, total_timesteps = 100_000):
+def run(gui=DEFAULT_GUI, total_timesteps = 500_000):
     obs = ObservationType.RGB
-    env = make_vec_env("landing-aviary-v0", n_envs=10, env_kwargs={'obs': obs})
+    act = ActionType.ONE_D_RPM
+    env = make_vec_env("landing-aviary-v0", n_envs=7, env_kwargs={'obs': obs})
     # env = gym.make("landing-aviary-v0", obs = obs)
     try:
         raise
         # model_name = "landing-aviary-v0"
-        model_name = "landing3-SAC_rgb_tt150000.zip"
+        model_name = "landing4-SAC_rgb_tt100000.zip"
         model = SAC.load(model_name, env=env)
     except:
-        model = SAC("CnnPolicy",
+        # model = SAC(
+        #         "CnnPolicy",
+        #         # 'MlpPolicy',
+        #         env,
+        #         buffer_size = 100000,
+        #         batch_size=64,
+        #         learning_rate=0.001,
+        #         # gradient_steps = 2,
+        #         tensorboard_log="./tensorboard/",
+        #         seed=0,
+        #         verbose=1
+        #         )
+        model = PPO(
+                # "MlpPolicy",
+                "CnnPolicy",
                 env,
-                buffer_size = 100000,
+                # buffer_size = 100000,
+                learning_rate = 0.001,
                 batch_size=64,
-                learning_rate=0.003,
+                n_epochs = 5, 
+                n_steps = 64,
+                ent_coef = 0.01,
+                # learning_rate=0.001,
                 tensorboard_log="./tensorboard/",
                 seed=0,
                 verbose=1
                 )
-    model.learning_rate = 0.003
     if TRAIN:
         model.learn(total_timesteps=total_timesteps, callback=HParamCallback())
-        model_name = "landing4-" + model.__class__.__name__ + "_" + obs._value_ + "_tt" + str(total_timesteps)
+        model_name = "landing6-" + model.__class__.__name__ + "_" + obs._value_ + "_tt" + str(total_timesteps)
         model.save(model_name)
         mean_reward, std_reward = evaluate_policy(
             model, env, n_eval_episodes=10, deterministic=False)
@@ -87,27 +106,27 @@ def run(gui=DEFAULT_GUI, total_timesteps = 100_000):
         print(f"mean_reward={mean_reward:.2f} +/- {std_reward}")
         print("------------------------------------------------")
 
-    env = LandingAviary(gui=gui, obs = obs, record=True)
-    obs = env.reset()
-    start = time.time()
+    # env = LandingAviary(gui=gui, obs = obs, record=True)
+    # obs = env.reset()
+    # start = time.time()
 
 
-    total_reward = 0
-    for i in range((env.EPISODE_LEN_SEC + 10) * int(env.SIM_FREQ/env.AGGR_PHY_STEPS)):
-        action, _states = model.predict(obs)
-        # Action example
-        # action = np.array([[-0.3]*4])
+    # total_reward = 0
+    # for i in range((env.EPISODE_LEN_SEC + 10) * int(env.SIM_FREQ/env.AGGR_PHY_STEPS)):
+    #     action, _states = model.predict(obs)
+    #     # Action example
+    #     # action = np.array([[-0.3]*4])
 
-        obs, reward, done, info = env.step(action)
-        total_reward += reward
-        if i % env.SIM_FREQ == 0:
-            env.render()
-        sync(i, start, env.AGGR_PHY_STEPS * env.TIMESTEP)
-        if done:
-            print("Episode reward", total_reward)
-            total_reward = 0
-            obs = env.reset()
-    env.close()
+    #     obs, reward, done, info = env.step(action)
+    #     total_reward += reward
+    #     if i % env.SIM_FREQ == 0:
+    #         env.render()
+    #     sync(i, start, env.AGGR_PHY_STEPS * env.TIMESTEP)
+    #     if done:
+    #         print("Episode reward", total_reward)
+    #         total_reward = 0
+    #         obs = env.reset()
+    # env.close()
 
 
 if __name__ == "__main__":
