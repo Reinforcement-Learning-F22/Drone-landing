@@ -5,32 +5,33 @@ import numpy as np
 from gym import spaces
 import pybullet as p
 
-from drone_landing.env.BaseAviary import BaseAviary
+# from drone_landing.env.BaseAviary import BaseAviary
+from drone_landing.env.BaseSingleAgentAviary import BaseSingleAgentAviary
 from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
 
 ################################################################################
 
-class LandingAviary(BaseAviary):
+class LandingAviary(BaseSingleAgentAviary):
     """Multi-drone environment class for control applications using vision."""
 
     ################################################################################
     
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
-                 num_drones: int=1,
-                 initial_xyzs=np.array([[0, 0, 0.5]]),
+                #  num_drones: int=1,
+                 initial_xyzs=np.array([[0, 0, 1]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
                  freq: int=20,
                  aggregate_phy_steps: int=1,
                  gui=False,
                  record=False,
-                 obstacles=True,
+                #  obstacles=True,
                  user_debug_gui=False,
+                 output_folder='results',
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM,
-                 output_folder='results'
+                 act: ActionType=ActionType.RPM
                  ):
         """Initialization of an aviary environment for control applications using vision.
 
@@ -65,11 +66,11 @@ class LandingAviary(BaseAviary):
             Whether to draw the drones' axes and the GUI RPMs sliders.
 
         """
-        self.EPISODE_LEN_SEC = 5
+        self.EPISODE_LEN_SEC = 10
         self.prev_shaping = None
 
         super().__init__(drone_model=drone_model,
-                         num_drones=num_drones,
+                        #  num_drones=num_drones,
                          initial_xyzs=initial_xyzs,
                          initial_rpys=initial_rpys,
                          physics=physics,
@@ -77,8 +78,8 @@ class LandingAviary(BaseAviary):
                          aggregate_phy_steps=aggregate_phy_steps,
                          gui=gui,
                          record=record,
-                         obstacles=obstacles,
-                         user_debug_gui=user_debug_gui,
+                        #  obstacles=obstacles,
+                        #  user_debug_gui=user_debug_gui,
                          output_folder=output_folder,
                          obs=obs,
                          act=act
@@ -171,7 +172,7 @@ class LandingAviary(BaseAviary):
         dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) #+ dist**2)
         angle_z_pen = 100 * abs(state[9])# + state[9]**2
 
-        shaping = -(dist_penalty + angle_z_pen)
+        shaping = -(dist_penalty) #+ angle_z_pen)
         reward = ((shaping - self.prev_shaping) 
                    if self.prev_shaping is not None else 0)
         # print("dist_penalty", reward)
@@ -182,7 +183,7 @@ class LandingAviary(BaseAviary):
             # print("prev angular velocity", self.prev_ang_vel)
             # ang_vel_penalty = self.ANG_VEL_PENALTY_FACTOR * (self.prev_ang_vel - ang_vel)
 
-            # reward += vel_penalty
+            reward += vel_penalty
             # reward += ang_vel_penalty
             # print("vel_penalty0", vel_penalty)
             # print("ang vel0", ang_vel_penalty)
@@ -190,7 +191,7 @@ class LandingAviary(BaseAviary):
         # angle_z_pen = abs(state[9]) + state[9]**2
         # reward -= 60 * angle_z_pen
         # print("angle_z", - 20 * angle_z_pen)
-        reward += 1
+        # reward += 1
         self.prev_shaping = shaping
         self.prev_vel = vel
         self.prev_ang_vel = ang_vel

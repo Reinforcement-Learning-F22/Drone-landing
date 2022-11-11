@@ -61,41 +61,41 @@ class HParamCallback(BaseCallback):
 def run(gui=DEFAULT_GUI, total_timesteps = 500_000):
     obs = ObservationType.RGB
     act = ActionType.ONE_D_RPM
-    env = make_vec_env("landing-aviary-v0", n_envs=7, env_kwargs={'obs': obs})
-    # env = gym.make("landing-aviary-v0", obs = obs)
+    env = make_vec_env("landing-aviary-v0", n_envs=7, env_kwargs={'obs': obs, 'act': act})
+    # env = gym.make("landing-aviary-v0", obs = obs, act=act)
     try:
         raise
         # model_name = "landing-aviary-v0"
         model_name = "landing4-SAC_rgb_tt100000.zip"
         model = SAC.load(model_name, env=env)
     except:
-        # model = SAC(
-        #         "CnnPolicy",
-        #         # 'MlpPolicy',
-        #         env,
-        #         buffer_size = 100000,
-        #         batch_size=64,
-        #         learning_rate=0.001,
-        #         # gradient_steps = 2,
-        #         tensorboard_log="./tensorboard/",
-        #         seed=0,
-        #         verbose=1
-        #         )
-        model = PPO(
-                # "MlpPolicy",
+        model = SAC(
                 "CnnPolicy",
+                # 'MlpPolicy',
                 env,
-                # buffer_size = 100000,
-                learning_rate = 0.001,
+                buffer_size = 100000,
                 batch_size=64,
-                n_epochs = 5, 
-                n_steps = 64,
-                ent_coef = 0.01,
-                # learning_rate=0.001,
+                learning_rate=0.001,
+                # gradient_steps = 2,
                 tensorboard_log="./tensorboard/",
                 seed=0,
                 verbose=1
                 )
+        # model = PPO(
+        #         # "MlpPolicy",
+        #         "CnnPolicy",
+        #         env,
+        #         # buffer_size = 100000,
+        #         learning_rate = 0.001,
+        #         batch_size=64,
+        #         n_epochs = 5, 
+        #         n_steps = 64,
+        #         ent_coef = 0.01,
+        #         # learning_rate=0.001,
+        #         tensorboard_log="./tensorboard/",
+        #         seed=0,
+        #         verbose=1
+        #         )
     if TRAIN:
         model.learn(total_timesteps=total_timesteps, callback=HParamCallback())
         model_name = "landing6-" + model.__class__.__name__ + "_" + obs._value_ + "_tt" + str(total_timesteps)
