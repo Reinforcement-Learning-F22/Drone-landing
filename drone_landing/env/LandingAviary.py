@@ -66,7 +66,7 @@ class LandingAviary(BaseSingleAgentAviary):
             Whether to draw the drones' axes and the GUI RPMs sliders.
 
         """
-        self.EPISODE_LEN_SEC = 10
+        self.EPISODE_LEN_SEC = 5
         self.prev_shaping = None
 
         super().__init__(drone_model=drone_model,
@@ -177,7 +177,7 @@ class LandingAviary(BaseSingleAgentAviary):
                    if self.prev_shaping is not None else 0)
         # print("dist_penalty", reward)
 
-        if state[2] < 0.3 and (self.prev_shaping is not None):
+        if state[2] < 0.5 and (self.prev_shaping is not None):
             vel_penalty = self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
             # print("angular velocity", ang_vel)
             # print("prev angular velocity", self.prev_ang_vel)

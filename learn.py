@@ -58,7 +58,7 @@ class HParamCallback(BaseCallback):
     def _on_step(self) -> bool:
         return True
 
-def run(gui=DEFAULT_GUI, total_timesteps = 500_000):
+def run(gui=DEFAULT_GUI, total_timesteps = 1_000_000):
     obs = ObservationType.RGB
     act = ActionType.ONE_D_RPM
     env = make_vec_env("landing-aviary-v0", n_envs=7, env_kwargs={'obs': obs, 'act': act})
