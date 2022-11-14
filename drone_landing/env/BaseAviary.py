@@ -158,8 +158,8 @@ class BaseAviary(gym.Env):
         #### Create attributes for vision tasks ####################
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
-            self.IMG_RES = np.array([60, 60])
-            self.IMG_FRAME_PER_SEC = 20
+            self.IMG_RES = np.array([80, 80])
+            self.IMG_FRAME_PER_SEC = 10
             self.IMG_CAPTURE_FREQ = int(self.SIM_FREQ/self.IMG_FRAME_PER_SEC)
             self.AGGR_PHY_STEPS = self.IMG_CAPTURE_FREQ
 

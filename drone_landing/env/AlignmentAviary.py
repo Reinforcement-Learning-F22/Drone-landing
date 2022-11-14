@@ -4,6 +4,7 @@ from enum import Enum
 import numpy as np
 from gym import spaces
 import pybullet as p
+import random
 
 # from drone_landing.env.BaseAviary import BaseAviary
 from drone_landing.env.BaseSingleAgentAviary import BaseSingleAgentAviary
@@ -12,7 +13,7 @@ from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
 
 ################################################################################
 
-class LandingAviary(BaseSingleAgentAviary):
+class AlignmentAviary(BaseSingleAgentAviary):
     """Multi-drone environment class for control applications using vision."""
 
     ################################################################################
@@ -30,8 +31,7 @@ class LandingAviary(BaseSingleAgentAviary):
                 #  obstacles=True,
                  user_debug_gui=False,
                  output_folder='results',
-                 obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM
+                 obs: ObservationType=ObservationType.KIN
                  ):
         """Initialization of an aviary environment for control applications using vision.
 
@@ -66,9 +66,11 @@ class LandingAviary(BaseSingleAgentAviary):
             Whether to draw the drones' axes and the GUI RPMs sliders.
 
         """
-        self.EPISODE_LEN_SEC = 10
+        self.EPISODE_LEN_SEC = 8
         self.prev_shaping = None
-        initial_xyzs = np.array([[0, 0, np.random.uniform(0.5, 5)]])
+        initial_xyzs = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 1),
+                                  random.choice([-1, 1]) * np.random.uniform(0.1, 1),
+                                  np.random.uniform(0.5, 5)]])
 
         super().__init__(drone_model=drone_model,
                         #  num_drones=num_drones,
@@ -83,8 +85,27 @@ class LandingAviary(BaseSingleAgentAviary):
                         #  user_debug_gui=user_debug_gui,
                          output_folder=output_folder,
                          obs=obs,
-                         act=act
+                         act=ActionType.RPM
                          )
+
+    ################################################################################
+    def _actionSpace(self):
+        return spaces.Discrete(5)
+
+    ################################################################################
+
+    def _preprocessAction(self, action):
+        if action == 0:
+            action = np.array([[0, 0, 0, 0]])
+        elif action == 1:
+            action = np.array([[1e-4,1e-4,-1e-4, -1e-4]])
+        elif action == 2:
+            action = np.array([[-1e-4,-1e-4, 1e-4, 1e-4]])
+        elif action == 3:
+            action = np.array([[-1e-4, 1e-4, 1e-4, -1e-4]])
+        elif action == 4:
+            action = np.array([[1e-4, -1e-4, -1e-4, 1e-4]])
+        return super()._preprocessAction(action)
 
     ################################################################################
 
@@ -99,7 +120,9 @@ class LandingAviary(BaseSingleAgentAviary):
 
         """
         self.prev_shaping = None
-        self.INIT_XYZS = np.array([[0, 0, np.random.uniform(0.5, 5)]])
+        self.INIT_XYZS = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 1),
+                                  random.choice([-1, 1]) * np.random.uniform(0.1, 1),
+                                  np.random.uniform(0.5, 5)]])
         gc.collect()
         return super().reset()
 
@@ -151,12 +174,9 @@ class LandingAviary(BaseSingleAgentAviary):
     
     ################################################################################
 
-    TARGET_RADIUS = 0.1
-    # ANG_VEL_PENALTY_FACTOR = 2
-    XYZ_PENALTY_FACTOR = 10
-    VEL_PENALTY_FACTOR = 20
-    INSIDE_RADIUS_BONUS = 60
-    VEL = 0
+    TARGET_RADIUS = 0.07
+    XYZ_PENALTY_FACTOR = 100
+    INSIDE_RADIUS_BONUS = 20
 
     def _computeReward(self):
         """Computes the current reward value.
@@ -168,61 +188,22 @@ class LandingAviary(BaseSingleAgentAviary):
 
         """
         state = self._getDroneStateVector(0)
-        print("x", state[0], "y", state[1])
-        # print("z", state[2])
         dist = np.linalg.norm(state[:3])
         vel = np.linalg.norm(state[10:13])
-        # ang_vel = np.linalg.norm(state[13:16])
 
-        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) #+ dist**2)
-        # angle_z_pen = 100 * abs(state[9])# + state[9]**2
+        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist + dist**2)
 
-        shaping = -(dist_penalty) #+ angle_z_pen)
+        shaping = -(dist_penalty) 
         reward = ((shaping - self.prev_shaping) 
                    if self.prev_shaping is not None else 0)
-        # print("dist_penalty", reward)
-        
-        if state[2] < 1 and (self.prev_shaping is not None):
-            vel_penalty = self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
-            # print("angular velocity", ang_vel)
-            # print("prev angular velocity", self.prev_ang_vel)
-            # ang_vel_penalty = self.ANG_VEL_PENALTY_FACTOR * (self.prev_ang_vel - ang_vel)
 
-            reward += vel_penalty
-            # reward += ang_vel_penalty
-            # print("vel_penalty0", vel_penalty)
-            # print("ang vel0", ang_vel_penalty)
+        if np.linalg.norm(state[:2]) < self.TARGET_RADIUS:
+            reward += self.INSIDE_RADIUS_BONUS/2
+            if vel <= 0.1:
+                reward += self.INSIDE_RADIUS_BONUS/2 
+            elif vel <= 1:
+                reward += (1 - (vel-0.1)/0.9) * self.INSIDE_RADIUS_BONUS/2
 
-        # angle_z_pen = abs(state[9]) + state[9]**2
-        # reward -= 60 * angle_z_pen
-        # print("angle_z", - 20 * angle_z_pen)
-        reward -= 0.1
-        self.prev_shaping = shaping
-        self.prev_vel = vel
-        self.VEL = vel
-        # self.prev_ang_vel = ang_vel
-        # self.prev_angle_z_pen = angle_z_pen
-
-
-        if state[2] <= 0.05:
-            # Win bigly we land safely to the pltform
-            if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
-                reward += self.INSIDE_RADIUS_BONUS/2
-                if vel <= 0.5:
-                    reward += self.INSIDE_RADIUS_BONUS/2 + 10
-                elif vel <= 2:
-                    reward += (1 - (vel-0.5)/1.7) * self.INSIDE_RADIUS_BONUS/2
-
-
-            
-            # vel_penalty = 0 if vel <= 0.3 else (vel - 0.3) * 30
-            # reward -= vel_penalty
-            # print("vel_penalty", -vel_penalty)
-            
-            # reward -= 5 * ang_vel
-            # print("ang vel", -5 * ang_vel)
-
-        # print("r", reward)
         return reward
 
     ################################################################################
@@ -242,7 +223,7 @@ class LandingAviary(BaseSingleAgentAviary):
             return True
 
         state = self._getDroneStateVector(0)
-        return state[2] <= 0.05
+        return np.linalg.norm(state[:2]) < self.TARGET_RADIUS
 
     ################################################################################
     

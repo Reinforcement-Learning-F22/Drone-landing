@@ -26,7 +26,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import HParam
 
-from drone_landing.env.LandingAviary import LandingAviary
+from drone_landing.env.AlignmentAviary import AlignmentAviary
 from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
 # from drone_landing.env.HoverAviary import HoverAviary, ObservationType
 from gym_pybullet_drones.utils.utils import sync, str2bool
@@ -59,24 +59,23 @@ class HParamCallback(BaseCallback):
         return True
 
 def run(gui=DEFAULT_GUI, total_timesteps = 1_000_000):
-    obs = ObservationType.KIN
-    act = ActionType.RPM
-    env = make_vec_env("landing-aviary-v0", n_envs=7, env_kwargs={'obs': obs, 'act': act})
-    # env = gym.make("landing-aviary-v0", obs = obs, act=act)
+    obs = ObservationType.RGB
+    env = make_vec_env("landing-aviary-v0", n_envs=7, env_kwargs={'obs': obs})
+    # env = gym.make("landing-aviary-v0", obs = obs)
     try:
+        raise
         # model_name = "landing-aviary-v0"
         model_name = "landing-SAC_kin_tt200000"
         # model = PPO.load(model_name, env=env)
         # model = SAC.load(model_name, env=env)
     except:
-        raise
         model = SAC(
                 "CnnPolicy",
                 # 'MlpPolicy',
                 env,
                 buffer_size = 100000,
                 batch_size=64,
-                learning_rate=0.001,
+                # learning_rate=0.001,
                 # gradient_steps = 2,
                 tensorboard_log="./tensorboard/",
                 seed=0,
@@ -107,7 +106,7 @@ def run(gui=DEFAULT_GUI, total_timesteps = 1_000_000):
         print(f"mean_reward={mean_reward:.2f} +/- {std_reward}")
         print("------------------------------------------------")
 
-    env = LandingAviary(gui=gui, obs = obs, act = act, record=True)
+    env = AlignmentAviary(gui=gui, obs = obs, record=True)
     obs = env.reset()
     start = time.time()
 
@@ -116,7 +115,7 @@ def run(gui=DEFAULT_GUI, total_timesteps = 1_000_000):
     for i in range((env.EPISODE_LEN_SEC + 10) * int(env.SIM_FREQ/env.AGGR_PHY_STEPS)):
         # action, _states = model.predict(obs)
         # Action example
-        action = np.array([[-0.3]*4])
+        action = np.array(0)
         # action = np.array([[0.0001,0.0001,-0.0001, -0.0001]])
         # action = np.array([[-0.0001,-0.0001, 0.0001, 0.0001]])
         # action = np.array([[-0.0001, 0.0001, 0.0001, -0.0001]])
