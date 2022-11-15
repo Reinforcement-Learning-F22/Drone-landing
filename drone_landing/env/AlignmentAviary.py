@@ -70,10 +70,10 @@ class AlignmentAviary(BaseSingleAgentAviary):
             Whether to draw the drones' axes and the GUI RPMs sliders.
 
         """
-        initial_xyzs = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 1),
-                                  random.choice([-1, 1]) * np.random.uniform(0.1, 1),
-                                  1]])
-                                #   np.random.uniform(0.5, 5)]])
+        initial_xyzs = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
+                                  random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
+                                  np.random.uniform(0.5, 5)]])
+                                #   1]])
 
         super().__init__(drone_model=drone_model,
                          initial_xyzs=initial_xyzs,
@@ -88,7 +88,7 @@ class AlignmentAviary(BaseSingleAgentAviary):
                          act=ActionType.RPM
                          )
 
-        self.EPISODE_LEN_SEC = 15
+        self.EPISODE_LEN_SEC = 10
         self.prev_shaping = None
 
         if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
@@ -176,10 +176,10 @@ class AlignmentAviary(BaseSingleAgentAviary):
 
         """
         self.prev_shaping = None
-        self.INIT_XYZS = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 1),
-                                  random.choice([-1, 1]) * np.random.uniform(0.1, 1),
-                                  1]])
-                                #   np.random.uniform(0.5, 5)]])
+        self.INIT_XYZS = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
+                                  random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
+                                  np.random.uniform(0.5, 5)]])
+                                #   1]])
         gc.collect()
         return super().reset()
 
@@ -245,8 +245,17 @@ class AlignmentAviary(BaseSingleAgentAviary):
 
         """
         state = self._getDroneStateVector(0)
+        if self.step_counter/self.SIM_FREQ >= self.EPISODE_LEN_SEC:
+            return 0
+
+        if state[0] < -4.85 or state[0] > 4.85 or state[1] < -4.85 or state[1] > 4.85:
+            return 0
+        
+        if np.linalg.norm(state[:2]) < self.TARGET_RADIUS:
+            return 0
+            
         dist = np.linalg.norm(state[:2])
-        vel = np.linalg.norm(state[10:13])
+        # vel = np.linalg.norm(state[10:13])
 
         dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) #+ dist**2)
 
@@ -255,15 +264,14 @@ class AlignmentAviary(BaseSingleAgentAviary):
                    if self.prev_shaping is not None else 0)
         # print("x", state[0], "y", state[1])
         # print("dist_penalty", reward)
-        reward -= 0.1
+        reward -= 0.0005
         self.prev_shaping = shaping
         if np.linalg.norm(state[:2]) < self.TARGET_RADIUS:
-            reward += self.INSIDE_RADIUS_BONUS/2
-            print("vel", vel)
-            if vel <= 0.1:
-                reward += self.INSIDE_RADIUS_BONUS/2 
-            elif vel <= 1:
-                reward += (1 - (vel-0.1)/0.9) * self.INSIDE_RADIUS_BONUS/2
+            reward += self.INSIDE_RADIUS_BONUS
+            # if vel <= 0.1:
+            #     reward += self.INSIDE_RADIUS_BONUS/2 
+            # elif vel <= 1:
+            #     reward += (1 - (vel-0.1)/0.9) * self.INSIDE_RADIUS_BONUS/2
 
         return reward
 
