@@ -16,6 +16,35 @@ import gym
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
 
 
+import linecache
+import os
+import tracemalloc
+
+def display_top(snapshot, key_type='lineno', limit=3):
+    snapshot = snapshot.filter_traces((
+        tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
+        tracemalloc.Filter(False, "<unknown>"),
+    ))
+    top_stats = snapshot.statistics(key_type)
+
+    print("Top %s lines" % limit)
+    for index, stat in enumerate(top_stats[:limit], 1):
+        frame = stat.traceback[0]
+        # replace "/path/to/module/file.py" with "module/file.py"
+        filename = os.sep.join(frame.filename.split(os.sep)[-2:])
+        print("#%s: %s:%s: %.1f KiB"
+              % (index, filename, frame.lineno, stat.size / 1024))
+        line = linecache.getline(frame.filename, frame.lineno).strip()
+        if line:
+            print('    %s' % line)
+
+    other = top_stats[limit:]
+    if other:
+        size = sum(stat.size for stat in other)
+        print("%s other: %.1f KiB" % (len(other), size / 1024))
+    total = sum(stat.size for stat in top_stats)
+    print("Total allocated size: %.1f KiB" % (total / 1024))
+
 
 class BaseAviary(gym.Env):
     """Base class for "drone aviary" Gym environments."""
@@ -82,6 +111,7 @@ class BaseAviary(gym.Env):
         self.SIM_FREQ = freq
         self.TIMESTEP = 1./self.SIM_FREQ
         self.AGGR_PHY_STEPS = aggregate_phy_steps
+
         #### Parameters ############################################
         self.NUM_DRONES = num_drones
         self.NEIGHBOURHOOD_RADIUS = neighbourhood_radius
@@ -128,10 +158,10 @@ class BaseAviary(gym.Env):
         #### Create attributes for vision tasks ####################
         self.VISION_ATTR = vision_attributes
         if self.VISION_ATTR:
-            self.IMG_RES = np.array([100, 100])
+            self.IMG_RES = np.array([80, 80])
             self.IMG_FRAME_PER_SEC = 10
             self.IMG_CAPTURE_FREQ = int(self.SIM_FREQ/self.IMG_FRAME_PER_SEC)
-            self.AGGR_PHY_STEPS = self.IMG_CAPTURE_FREQ
+            # self.AGGR_PHY_STEPS = self.IMG_CAPTURE_FREQ
 
             self.rgb = np.zeros(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0], 4)))
             self.dep = np.ones(((self.NUM_DRONES, self.IMG_RES[1], self.IMG_RES[0])))
@@ -230,18 +260,25 @@ class BaseAviary(gym.Env):
             in each subclass for its format.
 
         """
+        numBodies = p.getNumBodies()
+        for i in range (2, numBodies):
+            p.removeBody(i)
         p.resetSimulation(physicsClientId=self.CLIENT)
         numBodies = p.getNumBodies()
         for i in range (2, numBodies):
             p.removeBody(i)
         gc.collect()
 
+        # tracemalloc.start()
         #### Housekeeping ##########################################
         self._housekeeping()
         #### Update and store the drones kinematic information #####
         self._updateAndStoreKinematicInformation()
         #### Return the initial observation ########################
-        return self._computeObs()
+        obs = self._computeObs()
+        # snapshot = tracemalloc.take_snapshot()
+        # display_top(snapshot)
+        return obs
     
     ################################################################################
 
@@ -272,6 +309,8 @@ class BaseAviary(gym.Env):
             in each subclass for its format.
 
         """
+        # tracemalloc.start()
+        
         #### Read the GUI's input parameters #######################
         if self.GUI and self.USER_DEBUG:
             current_input_switch = p.readUserDebugParameter(self.INPUT_SWITCH, physicsClientId=self.CLIENT)
@@ -337,6 +376,10 @@ class BaseAviary(gym.Env):
         info = self._computeInfo()
         #### Advance the step counter ##############################
         self.step_counter = self.step_counter + (1 * self.AGGR_PHY_STEPS)
+        # print("step", self.step_counter)
+        # print("self.AGGR_PHY_STEPS", self.AGGR_PHY_STEPS)
+        # snapshot = tracemalloc.take_snapshot()
+        # display_top(snapshot)
         return obs, reward, done, info
     
     ################################################################################
@@ -549,9 +592,11 @@ class BaseAviary(gym.Env):
                                                  physicsClientId=self.CLIENT
                                                  )
         rgb = np.reshape(rgb, (h, w, 4))
-        dep = np.reshape(dep, (h, w))
-        seg = np.reshape(seg, (h, w))
-        return rgb, dep, seg
+        del dep, seg
+
+        # dep = np.reshape(dep, (h, w))
+        # seg = np.reshape(seg, (h, w))
+        return rgb, None, None
 
     ################################################################################
 
@@ -579,6 +624,7 @@ class BaseAviary(gym.Env):
         os.makedirs(path, exist_ok=True)
         if img_type == ImageType.RGB:
             (Image.fromarray(img_input.astype('uint8'), 'RGBA')).save(os.path.join(path,"frame_"+str(frame_num)+".png"))
+            del img_input
         elif img_type == ImageType.DEP:
             temp = ((img_input-np.min(img_input)) * 255 / (np.max(img_input)-np.min(img_input))).astype('uint8')
         elif img_type == ImageType.SEG:
