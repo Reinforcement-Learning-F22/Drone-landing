@@ -24,7 +24,6 @@ class AlignmentAviary(BaseSingleAgentAviary):
     
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
-                #  num_drones: int=1,
                  initial_xyzs=np.array([[0, 0, 1]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
@@ -32,8 +31,6 @@ class AlignmentAviary(BaseSingleAgentAviary):
                  aggregate_phy_steps: int=1,
                  gui=False,
                  record=False,
-                #  obstacles=True,
-                 user_debug_gui=False,
                  output_folder='results',
                  obs: ObservationType=ObservationType.KIN
                  ):
@@ -73,7 +70,6 @@ class AlignmentAviary(BaseSingleAgentAviary):
         initial_xyzs = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
                                   random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
                                   np.random.uniform(0.5, 5)]])
-                                #   1]])
 
         super().__init__(drone_model=drone_model,
                          initial_xyzs=initial_xyzs,
@@ -88,31 +84,21 @@ class AlignmentAviary(BaseSingleAgentAviary):
                          act=ActionType.RPM
                          )
 
-        self.EPISODE_LEN_SEC = 10
+        self.EPISODE_LEN_SEC = 20
         self.prev_shaping = None
-
-        if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
-            self.ctrl = DSLPIDControl(drone_model=drone_model)
-        elif drone_model in [DroneModel.HB]:
-            self.ctrl = SimplePIDControl(drone_model=drone_model)
+        self.done = None 
 
     ################################################################################
     def _actionSpace(self):
-        return spaces.Discrete(5)
+        return spaces.Box(low=-1*np.ones(4), 
+                            high=np.ones(4), dtype=np.float32)
 
     ################################################################################
 
     def step(self, action, start_time=None):
         total_reward = 0
         if action == 0:
-            action_ = np.array([self.HOVER_RPM, self.HOVER_RPM, self.HOVER_RPM, self.HOVER_RPM])
-            for i in range(int(self.SIM_FREQ/10)):
-                obs, reward, done, info = super().step(action_)
-                total_reward += reward
-                if start_time is not None:
-                    sync(self.step_counter, start_time, self.AGGR_PHY_STEPS * self.TIMESTEP)
-
-            return obs, total_reward, done, info
+            shift = np.array([0, 0, 0])
         elif action == 1:
             shift = np.array([0.05, 0, 0])
         elif action == 2:
@@ -124,8 +110,8 @@ class AlignmentAviary(BaseSingleAgentAviary):
 
         state = self._getDroneStateVector(0)
         target_pos = state[:3] + shift
-        # while error > 0.01:
-        for i in range(int(2*self.SIM_FREQ/3)):
+
+        for i in range(self.SIM_FREQ):
             state = self._getDroneStateVector(0)
             action_, error, _  = self.ctrl.computeControlFromState(control_timestep=self.TIMESTEP,
                                                                         state=state,
@@ -179,8 +165,8 @@ class AlignmentAviary(BaseSingleAgentAviary):
         self.INIT_XYZS = np.array([[random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
                                   random.choice([-1, 1]) * np.random.uniform(0.1, 0.5),
                                   np.random.uniform(0.5, 5)]])
-                                #   1]])
         gc.collect()
+        self.done = None
         return super().reset()
 
     ################################################################################
@@ -233,7 +219,7 @@ class AlignmentAviary(BaseSingleAgentAviary):
 
     TARGET_RADIUS = 0.07
     XYZ_PENALTY_FACTOR = 100
-    INSIDE_RADIUS_BONUS = 20
+    INSIDE_RADIUS_BONUS = 50
 
     def _computeReward(self):
         """Computes the current reward value.
@@ -244,34 +230,23 @@ class AlignmentAviary(BaseSingleAgentAviary):
             The reward.
 
         """
-        state = self._getDroneStateVector(0)
-        if self.step_counter/self.SIM_FREQ >= self.EPISODE_LEN_SEC:
+        if self.done:
             return 0
 
-        if state[0] < -4.85 or state[0] > 4.85 or state[1] < -4.85 or state[1] > 4.85:
-            return 0
-        
-        if np.linalg.norm(state[:2]) < self.TARGET_RADIUS:
-            return 0
+        state = self._getDroneStateVector(0)
             
         dist = np.linalg.norm(state[:2])
-        # vel = np.linalg.norm(state[10:13])
 
-        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) #+ dist**2)
+        dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) 
 
         shaping = -(dist_penalty) 
         reward = ((shaping - self.prev_shaping) 
                    if self.prev_shaping is not None else 0)
-        # print("x", state[0], "y", state[1])
-        # print("dist_penalty", reward)
         reward -= 0.0005
         self.prev_shaping = shaping
+
         if np.linalg.norm(state[:2]) < self.TARGET_RADIUS:
             reward += self.INSIDE_RADIUS_BONUS
-            # if vel <= 0.1:
-            #     reward += self.INSIDE_RADIUS_BONUS/2 
-            # elif vel <= 1:
-            #     reward += (1 - (vel-0.1)/0.9) * self.INSIDE_RADIUS_BONUS/2
 
         return reward
 
@@ -289,13 +264,16 @@ class AlignmentAviary(BaseSingleAgentAviary):
 
         """
         if self.step_counter/self.SIM_FREQ >= self.EPISODE_LEN_SEC:
+            self.done = True
             return True
 
         state = self._getDroneStateVector(0)
 
         if state[0] < -4.85 or state[0] > 4.85 or state[1] < -4.85 or state[1] > 4.85:
+            self.done = True
             return True
-        return np.linalg.norm(state[:2]) < self.TARGET_RADIUS
+        self.done = np.linalg.norm(state[:2]) < self.TARGET_RADIUS
+        return self.done
 
     ################################################################################
     
@@ -310,7 +288,7 @@ class AlignmentAviary(BaseSingleAgentAviary):
             Dummy value.
 
         """
-        return {"state": self._getDroneStateVector(0)}
+        return None
 
 
     ################################################################################

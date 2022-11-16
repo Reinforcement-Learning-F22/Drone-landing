@@ -26,7 +26,6 @@ class LandingAviary(BaseSingleAgentAviary):
                  aggregate_phy_steps: int=1,
                  gui=False,
                  record=False,
-                 user_debug_gui=False,
                  output_folder='results',
                  obs: ObservationType=ObservationType.KIN,
                  act: ActionType=ActionType.RPM
@@ -66,7 +65,9 @@ class LandingAviary(BaseSingleAgentAviary):
         """
         self.EPISODE_LEN_SEC = 10
         self.prev_shaping = None
-        initial_xyzs = np.array([[0, 0, np.random.uniform(0.5, 5)]])
+        initial_xyzs = np.array([[np.random.uniform(-0.15, 0.15),
+                                  np.random.uniform(-0.15, 0.15), 
+                                  np.random.uniform(0.5, 5)]])
 
         super().__init__(drone_model=drone_model,
                          initial_xyzs=initial_xyzs,
@@ -94,7 +95,9 @@ class LandingAviary(BaseSingleAgentAviary):
 
         """
         self.prev_shaping = None
-        self.INIT_XYZS = np.array([[0, 0, np.random.uniform(0.5, 5)]])
+        self.INIT_XYZS = np.array([[np.random.uniform(-0.15, 0.15),
+                                    np.random.uniform(-0.15, 0.15),
+                                    np.random.uniform(0.5, 5)]])
         gc.collect()
         return super().reset()
 
@@ -217,7 +220,7 @@ class LandingAviary(BaseSingleAgentAviary):
             Dummy value.
 
         """
-        return {"state": self._getDroneStateVector(0)}
+        return None
 
 
     ################################################################################

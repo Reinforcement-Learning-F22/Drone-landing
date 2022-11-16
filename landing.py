@@ -11,7 +11,7 @@ GUI = True
 OBS = ObservationType.KIN
 ACT = ActionType.ONE_D_RPM
 
-env = LandingAviary(gui=GUI, obs = OBS, act = ACT, record=True)
+env = LandingAviary(gui=GUI, obs=OBS, act=ACT, record=True)
 
 model_name = "trained_models/landing-SAC_kin_tt200000"
 model = SAC.load(model_name, env=env)
