@@ -5,31 +5,28 @@ import numpy as np
 from gym import spaces
 import pybullet as p
 
-# from drone_landing.env.BaseAviary import BaseAviary
 from drone_landing.env.BaseSingleAgentAviary import BaseSingleAgentAviary
 from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
 
-################################################################################
 
 class LandingAviary(BaseSingleAgentAviary):
     """Multi-drone environment class for control applications using vision."""
 
-    ################################################################################
-    
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
                  initial_xyzs=np.array([[0, 0, 1]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
-                 freq: int=20,
+                 freq: int=40,
                  aggregate_phy_steps: int=1,
                  gui=False,
                  record=False,
                  output_folder='results',
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM
+                 act: ActionType=ActionType.ONE_D_RPM
                  ):
+
         """Initialization of an aviary environment for control applications using vision.
 
         Attribute `vision_attributes` is automatically set to True when calling
@@ -82,8 +79,6 @@ class LandingAviary(BaseSingleAgentAviary):
                          act=act
                          )
 
-    ################################################################################
-
     def reset(self):
         """Resets the environment.
 
@@ -101,7 +96,6 @@ class LandingAviary(BaseSingleAgentAviary):
         gc.collect()
         return super().reset()
 
-    ################################################################################
 
     def _addObstacles(self):
         """Add obstacles to the environment.
@@ -147,12 +141,11 @@ class LandingAviary(BaseSingleAgentAviary):
                 physicsClientId=self.CLIENT
                 ) 
     
-    ################################################################################
-
     TARGET_RADIUS = 0.1
     XYZ_PENALTY_FACTOR = 10
     VEL_PENALTY_FACTOR = 20
     INSIDE_RADIUS_BONUS = 60
+    ANG_VEL_PENALTY_FACTOR = 30
     VEL = 0
 
     def _computeReward(self):
@@ -167,27 +160,26 @@ class LandingAviary(BaseSingleAgentAviary):
         state = self._getDroneStateVector(0)
         dist = np.linalg.norm(state[:3])
         vel = np.linalg.norm(state[10:13])
-        ang_vel = np.linalg.norm(state[13:16])
-        shaping = -(self.XYZ_PENALTY_FACTOR * (dist + dist**2) +\
-                    self.ANG_VEL_PENALTY_FACTOR * ang_vel)
+        dist = -(self.XYZ_PENALTY_FACTOR * (dist + dist**2))
 
-        reward = ((shaping - self.prev_shaping)
-                  if self.prev_shaping is not None
+        # Distance to point penalyzing
+        reward = ((dist - self.prev_dist)
+                  if self.prev_dist is not None
                   else 0)
 
-        if state[2] < 1 and (self.prev_shaping is not None):
+        # Penalizing velocity 
+        if state[2] < 1 and (self.prev_dist is not None):
             reward += self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
         
-        self.prev_shaping = shaping
+        self.prev_dist = dist
         self.prev_vel = vel
+        self.VEL = vel
 
+        # Reward depend on distance state
         if state[2] <= 0.05:
-            if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
-                reward += self.INSIDE_RADIUS_BONUS
+            reward += self.INSIDE_RADIUS_BONUS
         return reward
 
-    ################################################################################
-    
     def _computeDone(self):
         """Computes the current done value(s).
 
@@ -206,9 +198,7 @@ class LandingAviary(BaseSingleAgentAviary):
         state = self._getDroneStateVector(0)
         self.done = state[2] <= 0.05
         return self.done
-
-    ################################################################################
-    
+ 
     def _computeInfo(self):
         """Computes the current info dict(s).
 
@@ -220,10 +210,7 @@ class LandingAviary(BaseSingleAgentAviary):
             Dummy value.
 
         """
-        return None
-
-
-    ################################################################################
+        return {}
     
     def _clipAndNormalizeState(self,
                                state
@@ -285,8 +272,7 @@ class LandingAviary(BaseSingleAgentAviary):
 
         return norm_and_clipped
     
-    ################################################################################
-    
+
     def _clipAndNormalizeStateWarning(self,
                                       state,
                                       clipped_pos_xy,

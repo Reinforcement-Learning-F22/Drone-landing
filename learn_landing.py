@@ -41,17 +41,14 @@ class HParamCallback(BaseCallback):
 
 TOTAL_TIMESTAMPS = 1_000_000
 OBS = ObservationType.KIN
-ACT = ActionType.RPM
+ACT = ActionType.ONE_D_RPM
 
 env = make_vec_env("landing-aviary-v0", n_envs=7,
                    env_kwargs={'obs': OBS, 'act': ACT})
-try:
-    model_name = "landing-SAC_kin_tt200000"
-    model = SAC.load(model_name, env=env)
-    # model = PPO.load(model_name, env=env)
-except:
-    policy = "MlpPolicy" if OBS == ObservationType.KIN else "CnnPolicy"
-    model = SAC(
+
+policy = "MlpPolicy" if OBS == ObservationType.KIN else "CnnPolicy"
+
+model = SAC(
         policy,
         env,
         buffer_size=100000,
@@ -61,18 +58,6 @@ except:
         seed=0,
         verbose=1
     )
-    # model = PPO(
-    #         policy,
-    #         env,
-    #         # learning_rate = 0.001,
-    #         batch_size=64,
-    #         n_epochs = 5,
-    #         n_steps = 64,
-    #         ent_coef = 0.01,
-    #         tensorboard_log="./tensorboard/",
-    #         seed=0,
-    #         verbose=1
-    #         )
 
 model.learn(total_timesteps=TOTAL_TIMESTAMPS, callback=HParamCallback())
 model_name = "landing-" + model.__class__.__name__ + \
