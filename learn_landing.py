@@ -1,5 +1,5 @@
 import numpy as np
-from stable_baselines3 import PPO, SAC
+from stable_baselines3 import PPO, SAC, DDPG, A2C, DQN 
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
@@ -41,45 +41,57 @@ class HParamCallback(BaseCallback):
 
 TOTAL_TIMESTAMPS = 1_000_000
 OBS = ObservationType.KIN
-ACT = ActionType.RPM
+ACT = ActionType.ONE_D_RPM
 
 env = make_vec_env("landing-aviary-v0", n_envs=7,
                    env_kwargs={'obs': OBS, 'act': ACT})
-try:
-    model_name = "landing-SAC_kin_tt200000"
-    model = SAC.load(model_name, env=env)
-    # model = PPO.load(model_name, env=env)
-except:
-    policy = "MlpPolicy" if OBS == ObservationType.KIN else "CnnPolicy"
-    model = SAC(
-        policy,
-        env,
-        buffer_size=100000,
-        batch_size=64,
-        learning_rate=0.001,
-        tensorboard_log="./tensorboard/",
-        seed=0,
-        verbose=1
-    )
-    # model = PPO(
-    #         policy,
-    #         env,
-    #         # learning_rate = 0.001,
-    #         batch_size=64,
-    #         n_epochs = 5,
-    #         n_steps = 64,
-    #         ent_coef = 0.01,
-    #         tensorboard_log="./tensorboard/",
-    #         seed=0,
-    #         verbose=1
-    #         )
 
-model.learn(total_timesteps=TOTAL_TIMESTAMPS, callback=HParamCallback())
-model_name = "landing-" + model.__class__.__name__ + \
-    "_" + OBS._value_ + "_tt" + str(TOTAL_TIMESTAMPS)
-model.save(model_name)
-mean_reward, std_reward = evaluate_policy(
-    model, env, n_eval_episodes=10, deterministic=False)
-print("------------------------------------------------")
-print(f"mean_reward={mean_reward:.2f} +/- {std_reward}")
-print("------------------------------------------------")
+EXPEREMENT_PARAMS = {
+    # "PPO":[{"name":"PPO_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001}], 
+    # "DQN":[{"name":"DQN_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001}],
+    # "DDPG":[{"name":"DDPG_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001}], 
+    "SAC":[{"name":"SAC_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001}]    
+}
+
+policy = "MlpPolicy" if OBS == ObservationType.KIN else "CnnPolicy"
+
+for model_type in EXPEREMENT_PARAMS:
+    experements = EXPEREMENT_PARAMS[model_type]
+    for exp in experements:
+        model_name = "lan_{0}_kin".format(exp["name"])
+        
+        if model_type == "PPO":
+            model = PPO(
+                    policy,
+                    env,
+                    # learning_rate = 0.001,
+                    batch_size=64,
+                    n_epochs = 5,
+                    n_steps = 64,
+                    ent_coef = 0.01,
+                    tensorboard_log="./tensorboard/",
+                    seed=0,
+                    verbose=1
+                )
+        elif model_type == "SAC":
+            model = SAC(
+                policy,
+                env,
+                buffer_size=exp["buffer_size"],
+                batch_size=exp["batch_size"],
+                learning_rate=exp["learning_rate"],
+                tensorboard_log="./tensorboard/",
+                seed=0,
+                verbose=1
+            )
+        
+        model.learn(total_timesteps=TOTAL_TIMESTAMPS, callback=HParamCallback())
+        model_name = "landing-" + model.__class__.__name__ + \
+            "_" + OBS._value_ + "_tt" + str(TOTAL_TIMESTAMPS) + model_name
+        model.save(model_name)
+        mean_reward, std_reward = evaluate_policy(
+            model, env, n_eval_episodes=10, deterministic=False)
+        print("------------------------------------------------")
+        print(f"mean_reward={mean_reward:.2f} +/- {std_reward}")
+        print("------------------------------------------------")
+

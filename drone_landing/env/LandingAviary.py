@@ -1,28 +1,30 @@
 import os
 import gc
-from enum import Enum
 import numpy as np
-from gym import spaces
 import pybullet as p
 
-# from drone_landing.env.BaseAviary import BaseAviary
 from drone_landing.env.BaseSingleAgentAviary import BaseSingleAgentAviary
 from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
-from gym_pybullet_drones.utils.enums import DroneModel, Physics, ImageType
+from gym_pybullet_drones.utils.enums import DroneModel, Physics
 
-################################################################################
 
 class LandingAviary(BaseSingleAgentAviary):
     """Multi-drone environment class for control applications using vision."""
 
-    ################################################################################
-    
+    TARGET_RADIUS = 0.1
+    XYZ_PENALTY_FACTOR = 10
+    VEL_PENALTY_FACTOR = 20
+    INSIDE_RADIUS_BONUS = 60
+    VEL = 0
+    LANDING_Z_ZONE = 0.9
+
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
                  initial_xyzs=np.array([[0, 0, 1]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
-                 freq: int=20,
+                 #f requency of the main network parameters update
+                 freq: int=40,
                  aggregate_phy_steps: int=1,
                  gui=False,
                  record=False,
@@ -64,7 +66,7 @@ class LandingAviary(BaseSingleAgentAviary):
 
         """
         self.EPISODE_LEN_SEC = 10
-        self.prev_shaping = None
+        self.prev_penalty = None
         initial_xyzs = np.array([[np.random.uniform(-0.15, 0.15),
                                   np.random.uniform(-0.15, 0.15), 
                                   np.random.uniform(0.5, 5)]])
@@ -82,8 +84,6 @@ class LandingAviary(BaseSingleAgentAviary):
                          act=act
                          )
 
-    ################################################################################
-
     def reset(self):
         """Resets the environment.
 
@@ -94,14 +94,12 @@ class LandingAviary(BaseSingleAgentAviary):
             in each subclass for its format.
 
         """
-        self.prev_shaping = None
+        self.prev_penalty = None
         self.INIT_XYZS = np.array([[np.random.uniform(-0.15, 0.15),
                                     np.random.uniform(-0.15, 0.15),
                                     np.random.uniform(0.5, 5)]])
         gc.collect()
         return super().reset()
-
-    ################################################################################
 
     def _addObstacles(self):
         """Add obstacles to the environment.
@@ -146,14 +144,6 @@ class LandingAviary(BaseSingleAgentAviary):
                 p.getQuaternionFromEuler([0, np.pi/2, 0]),
                 physicsClientId=self.CLIENT
                 ) 
-    
-    ################################################################################
-
-    TARGET_RADIUS = 0.1
-    XYZ_PENALTY_FACTOR = 10
-    VEL_PENALTY_FACTOR = 20
-    INSIDE_RADIUS_BONUS = 60
-    VEL = 0
 
     def _computeReward(self):
         """Computes the current reward value.
@@ -167,27 +157,30 @@ class LandingAviary(BaseSingleAgentAviary):
         state = self._getDroneStateVector(0)
         dist = np.linalg.norm(state[:3])
         vel = np.linalg.norm(state[10:13])
-        ang_vel = np.linalg.norm(state[13:16])
-        shaping = -(self.XYZ_PENALTY_FACTOR * (dist + dist**2) +\
-                    self.ANG_VEL_PENALTY_FACTOR * ang_vel)
 
-        reward = ((shaping - self.prev_shaping)
-                  if self.prev_shaping is not None
+        # Penalty based on state
+        penalty = -(self.XYZ_PENALTY_FACTOR * (dist + dist**2))
+
+        # Compute reward based on diff between previous penalty and current
+        reward = ((penalty - self.prev_penalty)
+                  if self.prev_penalty is not None
                   else 0)
 
-        if state[2] < 1 and (self.prev_shaping is not None):
+        # Compute less velocity for safe landing
+        if state[2] < self.LANDING_Z_ZONE and (self.prev_penalty is not None):
             reward += self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
         
-        self.prev_shaping = shaping
+        self.prev_penalty = penalty
         self.prev_vel = vel
+        self.VEL = vel
 
         if state[2] <= 0.05:
+            # Add big reward when land safely between the radious
             if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
                 reward += self.INSIDE_RADIUS_BONUS
+            
         return reward
 
-    ################################################################################
-    
     def _computeDone(self):
         """Computes the current done value(s).
 
@@ -204,10 +197,9 @@ class LandingAviary(BaseSingleAgentAviary):
             return True
 
         state = self._getDroneStateVector(0)
+        # Stop conditions in reaching target point
         self.done = state[2] <= 0.05
         return self.done
-
-    ################################################################################
     
     def _computeInfo(self):
         """Computes the current info dict(s).
@@ -220,11 +212,8 @@ class LandingAviary(BaseSingleAgentAviary):
             Dummy value.
 
         """
-        return None
+        return {}
 
-
-    ################################################################################
-    
     def _clipAndNormalizeState(self,
                                state
                                ):
@@ -284,8 +273,6 @@ class LandingAviary(BaseSingleAgentAviary):
                                       ]).reshape(20,)
 
         return norm_and_clipped
-    
-    ################################################################################
     
     def _clipAndNormalizeStateWarning(self,
                                       state,
