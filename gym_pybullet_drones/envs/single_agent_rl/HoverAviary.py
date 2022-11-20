@@ -1,48 +1,33 @@
-import os
-import gc
 import numpy as np
-import pybullet as p
 
-from drone_landing.env.BaseSingleAgentAviary import BaseSingleAgentAviary
-from drone_landing.env.BaseSingleAgentAviary import ObservationType, ActionType
 from gym_pybullet_drones.utils.enums import DroneModel, Physics
+from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType, BaseSingleAgentAviary
 
+class HoverAviary(BaseSingleAgentAviary):
+    """Single agent RL problem: hover at position."""
 
-class LandingAviary(BaseSingleAgentAviary):
-    """Multi-drone environment class for control applications using vision."""
-
-    TARGET_RADIUS = 0.1
-    XYZ_PENALTY_FACTOR = 10
-    VEL_PENALTY_FACTOR = 20
-    INSIDE_RADIUS_BONUS = 60
-    VEL = 0
-    LANDING_Z_ZONE = 1
-
+    ################################################################################
+    
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
-                 initial_xyzs=np.array([[0, 0, 1]]),
+                 initial_xyzs=None,
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
-                 #frequency of the main network parameters update
-                 freq: int=40,
+                 freq: int=240,
                  aggregate_phy_steps: int=1,
                  gui=False,
-                 record=False,
-                 output_folder='results',
+                 record=False, 
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.ONE_D_RPM
+                 act: ActionType=ActionType.RPM
                  ):
-        """Initialization of an aviary environment for control applications using vision.
-        Attribute `vision_attributes` is automatically set to True when calling
-        the superclass `__init__()` method.
+        """Initialization of a single agent RL environment.
+
+        Using the generic single agent RL superclass.
+
         Parameters
         ----------
         drone_model : DroneModel, optional
             The desired drone type (detailed in an .urdf file in folder `assets`).
-        num_drones : int, optional
-            The desired number of drones in the aviary.
-        neighbourhood_radius : float, optional
-            Radius used to compute the drones' adjacency matrix, in meters.
         initial_xyzs: ndarray | None, optional
             (NUM_DRONES, 3)-shaped array containing the initial XYZ position of the drones.
         initial_rpys: ndarray | None, optional
@@ -57,17 +42,12 @@ class LandingAviary(BaseSingleAgentAviary):
             Whether to use PyBullet's GUI.
         record : bool, optional
             Whether to save a video of the simulation in folder `files/videos/`.
-        obstacles : bool, optional
-            Whether to add obstacles to the simulation.
-        user_debug_gui : bool, optional
-            Whether to draw the drones' axes and the GUI RPMs sliders.
-        """
-        self.EPISODE_LEN_SEC = 10
-        self.prev_penalty = None
-        initial_xyzs = np.array([[np.random.uniform(-0.15, 0.15),
-                                  np.random.uniform(-0.15, 0.15), 
-                                  np.random.uniform(0.5, 5)]])
+        obs : ObservationType, optional
+            The type of observation space (kinematic information or vision)
+        act : ActionType, optional
+            The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
 
+        """
         super().__init__(drone_model=drone_model,
                          initial_xyzs=initial_xyzs,
                          initial_rpys=initial_rpys,
@@ -76,152 +56,75 @@ class LandingAviary(BaseSingleAgentAviary):
                          aggregate_phy_steps=aggregate_phy_steps,
                          gui=gui,
                          record=record,
-                         output_folder=output_folder,
                          obs=obs,
                          act=act
                          )
 
-    def reset(self):
-        """Resets the environment.
-        Returns
-        -------
-        ndarray | dict[..]
-            The initial observation, check the specific implementation of `_computeObs()`
-            in each subclass for its format.
-        """
-        self.prev_penalty = None
-        self.INIT_XYZS = np.array([[np.random.uniform(-0.15, 0.15),
-                                    np.random.uniform(-0.15, 0.15),
-                                    np.random.uniform(0.5, 5)]])
-        gc.collect()
-        return super().reset()
-
-    def _addObstacles(self):
-        """Add obstacles to the environment.
-        These obstacles are loaded from standard URDF files included in Bullet.
-        """
-        p.setAdditionalSearchPath(os.path.dirname(os.path.abspath(__file__)), physicsClientId=self.CLIENT)
-
-        p.loadURDF("data/aruco.urdf",
-                [0, 0, 0.005],
-                p.getQuaternionFromEuler([0, 0, 0]),
-                physicsClientId=self.CLIENT
-                )
-        p.loadURDF("data/platform.urdf",
-                [0, 0, 0.002],
-                p.getQuaternionFromEuler([0, 0, 0]),
-                physicsClientId=self.CLIENT
-                )
-        p.loadURDF("data/wall.urdf",
-                [5, 0, 5],
-                p.getQuaternionFromEuler([0, 0, 0]),
-                physicsClientId=self.CLIENT
-                )
-        p.loadURDF("data/wall.urdf",
-                [-5, 0, 5],
-                p.getQuaternionFromEuler([0, 0, 0]),
-                physicsClientId=self.CLIENT
-                )
-        p.loadURDF("data/wall.urdf",
-                [0, 5, 5],
-                p.getQuaternionFromEuler([0, 0, np.pi/2]),
-                physicsClientId=self.CLIENT
-                )
-        self.k = p.loadURDF("data/wall.urdf",
-                [0, -5, 5],
-                p.getQuaternionFromEuler([0, 0, np.pi/2]),
-                physicsClientId=self.CLIENT
-                )
-        p.loadURDF("data/wall.urdf",
-                [0, 0, 10],
-                p.getQuaternionFromEuler([0, np.pi/2, 0]),
-                physicsClientId=self.CLIENT
-                ) 
-
+    ################################################################################
+    
     def _computeReward(self):
         """Computes the current reward value.
+
         Returns
         -------
         float
             The reward.
+
         """
         state = self._getDroneStateVector(0)
-        dist = np.linalg.norm(state[:3])
-        vel = np.linalg.norm(state[10:13])
+        return -1 * np.linalg.norm(np.array([0, 0, 1])-state[0:3])**2
 
-        # Penalty based on state
-        penalty = -(self.XYZ_PENALTY_FACTOR * (dist + dist**2))
-
-        # Compute reward based on diff between previous penalty and current
-        reward = ((penalty - self.prev_penalty)
-                  if self.prev_penalty is not None
-                  else 0)
-
-        # Compute less velocity for safe landing
-        if state[2] < self.LANDING_Z_ZONE and (self.prev_penalty is not None):
-            reward += self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
-       
-        # To faster land (increase time) 
-        reward -= 0.1
-
-        self.prev_penalty = penalty
-        self.prev_vel = vel
-        self.VEL = vel
-
-        if state[2] <= 0.05:
-            # Add big reward when land safely between the radious
-            if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
-                reward += self.INSIDE_RADIUS_BONUS/2
-                
-                if vel <= 0.5:
-                    reward += self.INSIDE_RADIUS_BONUS/2 + 10
-                elif vel <= 2:
-                    reward += (1 - (vel-0.5)/1.5) * self.INSIDE_RADIUS_BONUS/2
-            
-        return reward
-
+    ################################################################################
+    
     def _computeDone(self):
-        """Computes the current done value(s).
-        Unused as this subclass is not meant for reinforcement learning.
+        """Computes the current done value.
+
         Returns
         -------
         bool
-            Dummy value.
-        """
-        if self.step_counter/self.SIM_FREQ >= self.EPISODE_LEN_SEC:
-            self.done = True
-            return True
+            Whether the current episode is done.
 
-        state = self._getDroneStateVector(0)
-        # Stop conditions in reaching target point
-        self.done = state[2] <= 0.05
-        return self.done
+        """
+        if self.step_counter/self.SIM_FREQ > self.EPISODE_LEN_SEC:
+            return True
+        else:
+            return False
+
+    ################################################################################
     
     def _computeInfo(self):
         """Computes the current info dict(s).
-        Unused as this subclass is not meant for reinforcement learning.
+
+        Unused.
+
         Returns
         -------
         dict[str, int]
             Dummy value.
-        """
-        return {}
 
+        """
+        return {"answer": 42} #### Calculated by the Deep Thought supercomputer in 7.5M years
+
+    ################################################################################
+    
     def _clipAndNormalizeState(self,
                                state
                                ):
         """Normalizes a drone's state to the [-1,1] range.
+
         Parameters
         ----------
         state : ndarray
             (20,)-shaped array of floats containing the non-normalized state of a single drone.
+
         Returns
         -------
         ndarray
             (20,)-shaped array of floats containing the normalized state of a single drone.
+
         """
-        MAX_LIN_VEL_XY = 5 
-        MAX_LIN_VEL_Z = 10
+        MAX_LIN_VEL_XY = 3 
+        MAX_LIN_VEL_Z = 1
 
         MAX_XY = MAX_LIN_VEL_XY*self.EPISODE_LEN_SEC
         MAX_Z = MAX_LIN_VEL_Z*self.EPISODE_LEN_SEC
@@ -264,6 +167,8 @@ class LandingAviary(BaseSingleAgentAviary):
 
         return norm_and_clipped
     
+    ################################################################################
+    
     def _clipAndNormalizeStateWarning(self,
                                       state,
                                       clipped_pos_xy,
@@ -273,6 +178,7 @@ class LandingAviary(BaseSingleAgentAviary):
                                       clipped_vel_z,
                                       ):
         """Debugging printouts associated to `_clipAndNormalizeState`.
+
         Print a warning if values in a state vector is out of the clipping range.
         
         """

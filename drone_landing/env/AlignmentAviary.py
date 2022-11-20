@@ -83,6 +83,11 @@ class AlignmentAviary(BaseSingleAgentAviary):
                          obs=obs,
                          act=ActionType.RPM
                          )
+        
+        if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
+            self.ctrl = DSLPIDControl(drone_model=DroneModel.CF2X)
+        elif drone_model == DroneModel.HB:
+                self.ctrl = SimplePIDControl(drone_model=DroneModel.HB)
 
         self.EPISODE_LEN_SEC = 20
         self.prev_shaping = None
@@ -90,8 +95,7 @@ class AlignmentAviary(BaseSingleAgentAviary):
 
     ################################################################################
     def _actionSpace(self):
-        return spaces.Box(low=-1*np.ones(4), 
-                            high=np.ones(4), dtype=np.float32)
+        return spaces.Discrete(5)
 
     ################################################################################
 
@@ -234,7 +238,6 @@ class AlignmentAviary(BaseSingleAgentAviary):
             return 0
 
         state = self._getDroneStateVector(0)
-            
         dist = np.linalg.norm(state[:2])
 
         dist_penalty = self.XYZ_PENALTY_FACTOR * (dist) 
@@ -242,7 +245,7 @@ class AlignmentAviary(BaseSingleAgentAviary):
         shaping = -(dist_penalty) 
         reward = ((shaping - self.prev_shaping) 
                    if self.prev_shaping is not None else 0)
-        reward -= 0.0005
+        reward -= 0.01
         self.prev_shaping = shaping
 
         if np.linalg.norm(state[:2]) < self.TARGET_RADIUS:
@@ -288,7 +291,7 @@ class AlignmentAviary(BaseSingleAgentAviary):
             Dummy value.
 
         """
-        return None
+        return {}
 
 
     ################################################################################
@@ -312,8 +315,8 @@ class AlignmentAviary(BaseSingleAgentAviary):
         MAX_LIN_VEL_XY = 8 
         MAX_LIN_VEL_Z = 8
 
-        MAX_XY = MAX_LIN_VEL_XY*self.EPISODE_LEN_SEC
-        MAX_Z = MAX_LIN_VEL_Z*self.EPISODE_LEN_SEC
+        MAX_XY = 5
+        MAX_Z = 10
 
         MAX_PITCH_ROLL = np.pi # Full range
 
