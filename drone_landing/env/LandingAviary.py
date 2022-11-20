@@ -16,21 +16,21 @@ class LandingAviary(BaseSingleAgentAviary):
     VEL_PENALTY_FACTOR = 20
     INSIDE_RADIUS_BONUS = 60
     VEL = 0
-    LANDING_Z_ZONE = 0.9
+    LANDING_Z_ZONE = 1
 
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
                  initial_xyzs=np.array([[0, 0, 1]]),
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
-                 #f requency of the main network parameters update
+                 #frequency of the main network parameters update
                  freq: int=40,
                  aggregate_phy_steps: int=1,
                  gui=False,
                  record=False,
                  output_folder='results',
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM
+                 act: ActionType=ActionType.ONE_D_RPM
                  ):
         """Initialization of an aviary environment for control applications using vision.
 
@@ -169,7 +169,10 @@ class LandingAviary(BaseSingleAgentAviary):
         # Compute less velocity for safe landing
         if state[2] < self.LANDING_Z_ZONE and (self.prev_penalty is not None):
             reward += self.VEL_PENALTY_FACTOR * (self.prev_vel - vel)
-        
+       
+        # To faster land (increase time) 
+        reward -= 0.1
+
         self.prev_penalty = penalty
         self.prev_vel = vel
         self.VEL = vel
@@ -177,7 +180,12 @@ class LandingAviary(BaseSingleAgentAviary):
         if state[2] <= 0.05:
             # Add big reward when land safely between the radious
             if np.linalg.norm(state[:3]) < self.TARGET_RADIUS:
-                reward += self.INSIDE_RADIUS_BONUS
+                reward += self.INSIDE_RADIUS_BONUS/2
+                
+                if vel <= 0.5:
+                    reward += self.INSIDE_RADIUS_BONUS/2 + 10
+                elif vel <= 2:
+                    reward += (1 - (vel-0.5)/1.5) * self.INSIDE_RADIUS_BONUS/2
             
         return reward
 
