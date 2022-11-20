@@ -1,7 +1,8 @@
 __pycache__/
 results/
-tensorboard/
+tensorboard/*
 *.zip
 !trained_models/*.zip
 gym_pybullet_drones/
 .vscode/
+!tensorboard/Alignment/
