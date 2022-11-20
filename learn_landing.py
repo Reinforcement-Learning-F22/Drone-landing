@@ -52,18 +52,18 @@ env_td3 = make_vec_env("landing-aviary-v0", n_envs=1,
 
 
 EXPEREMENT_PARAMS = {
-    # "PPO":[ {"name":"PPO_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.99},
-    #         {"name":"PPO_2", "buffer_size":100000, "batch_size":64, "learning_rate":0.0001, "gamma":0.9},
-    #         {"name":"PPO_3", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.1},
-    #         {"name":"PPO_4", "buffer_size":100000, "batch_size":32, "learning_rate":0.001, "gamma":0.7}], 
-    "DDPG":[{"name":"DDPG_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.99},
+    "PPO":[ {"name":"PPO_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.99},
+            {"name":"PPO_2", "buffer_size":100000, "batch_size":64, "learning_rate":0.0001, "gamma":0.9},
+            {"name":"PPO_3", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.1},
+            {"name":"PPO_4", "buffer_size":100000, "batch_size":32, "learning_rate":0.001, "gamma":0.7}], 
+    "TD3":[{"name":"DDPG_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.99},
             {"name":"DDPG_2", "buffer_size":100000, "batch_size":64, "learning_rate":0.0001, "gamma":0.99},
             {"name":"DDPG_3", "buffer_size":100000, "batch_size":64, "learning_rate":0.01, "gamma":0.7},
             {"name":"DDPG_4", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.7}], 
-    # "SAC":[ {"name":"SAC_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.99}, 
-    #         {"name":"SAC_2", "buffer_size":100000, "batch_size":64, "learning_rate":0.0001, "gamma":0.9}, 
-    #         {"name":"SAC_3", "buffer_size":100000, "batch_size":32, "learning_rate":0.01, "gamma":0.1},
-    #         {"name":"SAC_4", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.7}]    
+    "SAC":[ {"name":"SAC_1", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.99}, 
+            {"name":"SAC_2", "buffer_size":100000, "batch_size":64, "learning_rate":0.0001, "gamma":0.9}, 
+            {"name":"SAC_3", "buffer_size":100000, "batch_size":32, "learning_rate":0.01, "gamma":0.1},
+            {"name":"SAC_4", "buffer_size":100000, "batch_size":64, "learning_rate":0.001, "gamma":0.7}]    
 }
 
 policy = "MlpPolicy" if OBS == ObservationType.KIN else "CnnPolicy"
