@@ -13,7 +13,7 @@ ACT = ActionType.ONE_D_RPM
 
 env = LandingAviary(gui=GUI, obs=OBS, act=ACT, record=True)
 
-model_name = "trained_models/landing-SAC_kin_tt200000"
+model_name = "landing-SAC_kin_tt400000lan_SAC_2_kin"
 model = SAC.load(model_name, env=env)
 
 obs = env.reset()

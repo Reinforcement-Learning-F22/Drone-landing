@@ -238,8 +238,8 @@ class LandingAviary(BaseSingleAgentAviary):
             (20,)-shaped array of floats containing the normalized state of a single drone.
 
         """
-        MAX_LIN_VEL_XY = 8 
-        MAX_LIN_VEL_Z = 8
+        MAX_LIN_VEL_XY = 5 
+        MAX_LIN_VEL_Z = 10
 
         MAX_XY = MAX_LIN_VEL_XY*self.EPISODE_LEN_SEC
         MAX_Z = MAX_LIN_VEL_Z*self.EPISODE_LEN_SEC
